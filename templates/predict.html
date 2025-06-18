@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Pelatihan Model GRU</title>
+    <title>Hasil Prediksi Harga Saham</title>
     <style>
       body {
         font-family: Arial, sans-serif;
@@ -16,7 +16,7 @@
         padding: 25px;
         border-radius: 8px;
         box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-        max-width: 700px;
+        max-width: 800px;
         margin: 30px auto;
       }
       h1,
@@ -69,20 +69,31 @@
       .controls button:hover {
         background-color: #0056b3;
       }
-      .summary-list {
-        list-style: none;
-        padding: 0;
-        text-align: center;
+      .prediction-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 20px;
       }
-      .summary-list li {
-        margin-bottom: 10px;
-        font-size: 1.1em;
+      .prediction-table th,
+      .prediction-table td {
+        border: 1px solid #ddd;
+        padding: 8px;
+        text-align: left;
+      }
+      .prediction-table th {
+        background-color: #f2f2f2;
+      }
+      .rmse-display {
+        font-size: 1.2em;
+        font-weight: bold;
+        text-align: center;
+        margin-bottom: 20px;
       }
     </style>
   </head>
   <body>
     <div class="container">
-      <h1>Pelatihan Model GRU untuk {{ ticker }}</h1>
+      <h1>Hasil Prediksi Harga Saham {{ ticker }}</h1>
 
       {% with messages = get_flashed_messages(with_categories=true) %} {% if
       messages %} {% for category, message in messages %}
@@ -90,42 +101,37 @@
       {% endfor %} {% endif %} {% endwith %}
 
       <div class="controls">
-        <button onclick="location.href='/train';">Mulai Pelatihan Ulang</button>
+        <a href="/train">Latih Ulang Model</a>
         <a href="/preprocess?ticker={{ ticker }}">Kembali ke Preprocessing</a>
         <a href="/">Kembali ke Unduh Data</a>
-        <div class="controls">
-          <button onclick="location.href='/predict';">Lakukan Prediksi</button>
-        </div>
       </div>
 
-      <h2>Ringkasan Pelatihan</h2>
-      <ul class="summary-list">
-        <li><strong>Epochs:</strong> {{ epochs }}</li>
-        <li><strong>Learning Rate:</strong> {{ learning_rate }}</li>
-        <li><strong>Loss Akhir:</strong> {{ "%.6f"|format(final_loss) }}</li>
-        <li>
-          <strong>Durasi Pelatihan:</strong> {{ "%.2f"|format(training_duration)
-          }} detik
-        </li>
-      </ul>
+      <div class="rmse-display">
+        Root Mean Squared Error (RMSE):
+        <strong>{{ "%.4f"|format(rmse) }}</strong>
+      </div>
 
-      {#
-      <h2>Loss per Epoch</h2>
-      <pre
-        style="
-          max-height: 200px;
-          overflow-y: scroll;
-          background-color: #eee;
-          padding: 10px;
-          border-radius: 4px;
-        "
-      >
-            {% for loss_val in losses %}
-                Epoch {{ loop.index }}: {{ "%.6f"|format(loss_val) }}
-            {% endfor %}
-        </pre
-      >
-      #}
+      <h2>
+        Prediksi ({{ total_predictions }} Data, Ditampilkan 20 Data Terakhir)
+      </h2>
+      <table class="prediction-table">
+        <thead>
+          <tr>
+            <th>Tanggal</th>
+            <th>Harga Aktual</th>
+            <th>Harga Prediksi</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for result in prediction_results %}
+          <tr>
+            <td>{{ result['Date'] }}</td>
+            <td>{{ result['True Price'] }}</td>
+            <td>{{ result['Predicted Price'] }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
     </div>
   </body>
 </html>
