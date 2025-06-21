@@ -1,5 +1,5 @@
 import numpy as np
-from .activations import sigmoid, sigmoid_derivative, tanh, tanh_derivative 
+from .activations import sigmoid, sigmoid_derivative, tanh, tanh_derivative
 
 class GRU:
     def __init__(self, input_dim, hidden_dim, output_dim, dropout_rate=0.0):
@@ -7,11 +7,16 @@ class GRU:
         self.hidden_dim = hidden_dim
         self.output_dim = output_dim
         self.dropout_rate = dropout_rate
-        self.is_training = True 
+        self.is_training = True
 
+        # Inisialisasi bobot (weights)
+        # Bentuk: (input_dim, hidden_dim) untuk bobot input
+        # Bentuk: (hidden_dim, hidden_dim) untuk bobot hidden state
+        # Bentuk: (1, hidden_dim) untuk bias
+        # Menggunakan np.random.randn * 0.01 untuk inisialisasi kecil
         self.Wz = np.random.randn(input_dim, hidden_dim) * 0.01
         self.Uz = np.random.randn(hidden_dim, hidden_dim) * 0.01
-        self.bz = np.zeros((1, hidden_dim))
+        self.bz = np.zeros((1, hidden_dim)) 
 
         self.Wr = np.random.randn(input_dim, hidden_dim) * 0.01
         self.Ur = np.random.randn(hidden_dim, hidden_dim) * 0.01
@@ -28,35 +33,44 @@ class GRU:
 
     def forward(self, X):
         """
-        Melakukan forward pass pada GRU untuk satu sequence.
+        Melakukan forward pass pada GRU untuk satu batch sequences.
 
         Args:
-            X (np.ndarray): Input sequence, shape (sequence_length, input_dim)
+            X (np.ndarray): Input batch, shape (batch_size, sequence_length, input_dim)
+        Returns:
+            np.ndarray: Output prediksi untuk setiap sequence di batch, shape (batch_size, output_dim)
         """
-        sequence_length = X.shape[0]
-        
-        h_prev = np.zeros((1, self.hidden_dim))
+        batch_size, sequence_length, _ = X.shape
 
-        hidden_states = []
+        # Inisialisasi hidden state awal untuk setiap sampel di batch
+        h_prev = np.zeros((batch_size, self.hidden_dim))
+
+        # Cache untuk menyimpan nilai-nilai per time step untuk backward pass
         sequence_cache = []
-        
-        for t in range(sequence_length):
-            x_t = X[t].reshape(1, self.input_dim)
 
-            z_pre = np.dot(x_t, self.Wz) + np.dot(h_prev, self.Uz) + self.bz
-            r_pre = np.dot(x_t, self.Wr) + np.dot(h_prev, self.Ur) + self.br
-            
+        for t in range(sequence_length):
+            x_t = X[:, t, :] 
+
+            # Perhitungan Update Gate (z_t)
+            # Wz: (input_dim, hidden_dim), x_t: (batch_size, input_dim) -> (batch_size, hidden_dim)
+            # Uz: (hidden_dim, hidden_dim), h_prev: (batch_size, hidden_dim) -> (batch_size, hidden_dim)
+            z_pre = x_t @ self.Wz + h_prev @ self.Uz + self.bz # bz akan di-broadcast
             z_t = sigmoid(z_pre)
+
+            # Perhitungan Reset Gate (r_t)
+            r_pre = x_t @ self.Wr + h_prev @ self.Ur + self.br
             r_t = sigmoid(r_pre)
-            
-            h_tilde_pre = np.dot(x_t, self.Wh) + np.dot(r_t * h_prev, self.Uh) + self.bh
+
+            # Perhitungan Candidate Hidden State (h_tilde_t)
+            h_tilde_pre = x_t @ self.Wh + (r_t * h_prev) @ self.Uh + self.bh
             h_tilde_t = tanh(h_tilde_pre)
 
+            # Perhitungan Final Hidden State (h_t)
             h_t = (1 - z_t) * h_prev + z_t * h_tilde_t
-            
+
+            # Dropout (inverted dropout)
             dropout_mask = np.ones_like(h_t)
             if self.is_training and self.dropout_rate > 0:
-                # Inverted dropout
                 dropout_mask = (np.random.rand(*h_t.shape) > self.dropout_rate) / (1 - self.dropout_rate)
                 h_t *= dropout_mask
 
@@ -68,37 +82,46 @@ class GRU:
                 'r_t': r_t,
                 'h_tilde_t': h_tilde_t,
                 'h_t': h_t,
-                'dropout_mask': dropout_mask
+                'dropout_mask': dropout_mask 
             })
 
-            h_prev = h_t
-            hidden_states.append(h_t)
+            h_prev = h_t 
 
-        final_h_t = hidden_states[-1]
-        output = np.dot(final_h_t, self.Wo) + self.bo
+        # Output lapisan akhir (linear layer) hanya dari hidden state terakhir
+        final_h_t = h_t 
+        output = final_h_t @ self.Wo + self.bo 
 
         self.cache['sequence_cache'] = sequence_cache
-        self.cache['final_h_t'] = final_h_t
+        self.cache['final_h_t'] = final_h_t 
         self.cache['output'] = output
         return output
 
-    def backward(self, d_output, learning_rate):
-        sequence_cache = self.cache['sequence_cache']
-        final_h_t = self.cache['final_h_t']
+    def backward(self, d_output):
+        """
+        Melakukan backward pass untuk satu batch sequences.
 
+        Args:
+            d_output (np.ndarray): Gradien dari loss terhadap output model, shape (batch_size, output_dim)
+        """
+        sequence_cache = self.cache['sequence_cache']
+
+        # Inisialisasi gradien untuk bobot
+        # Gradien akan diakumulasikan di seluruh time steps dan batch samples
         dWz, dUz, dbz = np.zeros_like(self.Wz), np.zeros_like(self.Uz), np.zeros_like(self.bz)
         dWr, dUr, dbr = np.zeros_like(self.Wr), np.zeros_like(self.Ur), np.zeros_like(self.br)
         dWh, dUh, dbh = np.zeros_like(self.Wh), np.zeros_like(self.Uh), np.zeros_like(self.bh)
         dWo, dbo = np.zeros_like(self.Wo), np.zeros_like(self.bo)
 
-        dWo += np.dot(final_h_t.T, d_output)
-        dbo += d_output
+        # Gradien dari output layer
+        dWo += sequence_cache[-1]['h_t'].T @ d_output 
+        dbo += np.sum(d_output, axis=0, keepdims=True) 
 
-        dh_next = np.dot(d_output, self.Wo.T)
+        # Inisialisasi gradien hidden state dari output layer
+        dh_next = d_output @ self.Wo.T 
 
         for t in reversed(range(len(sequence_cache))):
             cache_t = sequence_cache[t]
-            x_t, h_prev, z_pre, r_pre, h_tilde_pre, z_t, r_t, h_tilde_t, h_t, dropout_mask = \
+            x_t, h_prev, z_pre, r_pre, h_tilde_pre, z_t, r_t, h_tilde_t, h_t_cached, dropout_mask = \
                 cache_t['x_t'], cache_t['h_prev'], cache_t['z_pre'], cache_t['r_pre'], cache_t['h_tilde_pre'], \
                 cache_t['z_t'], cache_t['r_t'], cache_t['h_tilde_t'], cache_t['h_t'], cache_t['dropout_mask']
 
@@ -112,29 +135,28 @@ class GRU:
             dh_tilde_t = dh_t * z_t
             dh_tilde_pre = dh_tilde_t * tanh_derivative(h_tilde_pre)
 
-            dWh += np.dot(x_t.T, dh_tilde_pre)
-            dbh += dh_tilde_pre
-            
-            dUh += np.dot((r_t * h_prev).T, dh_tilde_pre)
-            
-            dr_t_from_h_tilde = np.dot(dh_tilde_pre, self.Uh.T) * h_prev
+            dWh += x_t.T @ dh_tilde_pre
+            dbh += np.sum(dh_tilde_pre, axis=0, keepdims=True)
+
+            dUh += (r_t * h_prev).T @ dh_tilde_pre
+
+            dr_t_from_h_tilde = dh_tilde_pre @ self.Uh.T * h_prev
 
             dr_t = dr_t_from_h_tilde
             dr_pre = dr_t * sigmoid_derivative(r_pre)
 
-            dWr += np.dot(x_t.T, dr_pre)
-            dbr += dr_pre
-            dUr += np.dot(h_prev.T, dr_pre)
+            dWr += x_t.T @ dr_pre
+            dbr += np.sum(dr_pre, axis=0, keepdims=True)
+            dUr += h_prev.T @ dr_pre
 
-            dWz += np.dot(x_t.T, dz_pre)
-            dbz += dz_pre
-            dUz += np.dot(h_prev.T, dz_pre)
+            dWz += x_t.T @ dz_pre
+            dbz += np.sum(dz_pre, axis=0, keepdims=True)
+            dUz += h_prev.T @ dz_pre
 
             dh_next = dh_prev_term1 + \
-                      np.dot(dz_pre, self.Uz.T) + \
-                      np.dot(dr_pre, self.Ur.T) + \
-                      (np.dot(dh_tilde_pre, self.Uh.T) * r_t)
-
+                      (dz_pre @ self.Uz.T) + \
+                      (dr_pre @ self.Ur.T) + \
+                      (dh_tilde_pre @ self.Uh.T) * r_t 
 
         self.grads = {
             'dWz': dWz, 'dUz': dUz, 'dbz': dbz,
@@ -150,7 +172,7 @@ class GRU:
 
         self.Wr -= learning_rate * self.grads['dWr']
         self.Ur -= learning_rate * self.grads['dUr']
-        self.br -= learning_rate * self.grads['dbr'] 
+        self.br -= learning_rate * self.grads['dbr']
 
         self.Wh -= learning_rate * self.grads['dWh']
         self.Uh -= learning_rate * self.grads['dUh']

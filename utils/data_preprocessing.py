@@ -23,12 +23,10 @@ def calculate_technical_indicators(df):
     loss = -delta.where(delta < 0, 0) 
 
     # Average gain dan average loss menggunakan Exponential Moving Average
-    # com = span - 1 untuk mencocokkan definisi EMA di TA libraries
     avg_gain = gain.ewm(com=14 - 1, adjust=False).mean()
     avg_loss = loss.ewm(com=14 - 1, adjust=False).mean()
 
     # Hitung Relative Strength (RS)
-    # Tangani kasus ZeroDivisionError jika avg_loss adalah 0
     rs = np.where(avg_loss == 0, np.inf, avg_gain / avg_loss) 
     df_copy['RSI'] = 100 - (100 / (1 + rs))
 
@@ -46,9 +44,8 @@ def calculate_technical_indicators(df):
     # tr = np.maximum(high_low, np.maximum(high_close, low_close))
     # df_copy['ATR'] = tr.rolling(window=14).mean() # Default 14 period
 
-    # Tangani NaN yang muncul dari perhitungan indikator (misalnya, periode awal untuk rolling/ewm)
     df_copy.ffill(inplace=True)
-    df_copy.bfill(inplace=True) # Isi NaN yang mungkin tersisa di awal (jika ada)
+    df_copy.bfill(inplace=True)
 
     return df_copy
 

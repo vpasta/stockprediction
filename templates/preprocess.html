@@ -44,13 +44,35 @@
       }
       .warning {
         background-color: #fff3cd;
-        color: #664d03;
-        border: 1px solid #ffecb5;
+        color: #856404;
+        border: 1px solid #ffeeba;
       }
       .info {
         background-color: #d1ecf1;
         color: #0c5460;
         border: 1px solid #bee5eb;
+      }
+      .controls {
+        text-align: center;
+        margin-bottom: 20px;
+      }
+      .controls a,
+      .controls button {
+        padding: 10px 15px;
+        background-color: #007bff;
+        color: white;
+        text-decoration: none;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 16px;
+        margin: 0 5px;
+        transition: background-color 0.3s ease;
+        display: inline-block; /* Agar bisa berdampingan */
+      }
+      .controls a:hover,
+      .controls button:hover {
+        background-color: #0056b3;
       }
       .data-display {
         margin-top: 20px;
@@ -59,38 +81,25 @@
       .data-table {
         width: 100%;
         border-collapse: collapse;
-        margin-bottom: 20px;
+        margin-top: 20px;
       }
       .data-table th,
       .data-table td {
         border: 1px solid #ddd;
         padding: 8px;
         text-align: left;
-        white-space: nowrap;
       }
       .data-table th {
         background-color: #f2f2f2;
       }
-      .back-link {
-        display: block;
-        text-align: center;
+      .info-box {
+        background-color: #e9ecef;
+        padding: 15px;
+        border-radius: 5px;
         margin-top: 20px;
       }
-      .controls {
-        text-align: center;
-        margin-bottom: 20px;
-      }
-      .controls a {
-        padding: 10px 15px;
-        background-color: #007bff;
-        color: white;
-        text-decoration: none;
-        border-radius: 4px;
-        margin: 0 5px;
-        transition: background-color 0.3s ease;
-      }
-      .controls a:hover {
-        background-color: #0056b3;
+      .info-box p {
+        margin: 5px 0;
       }
     </style>
   </head>
@@ -104,38 +113,39 @@
       {% endfor %} {% endif %} {% endwith %}
 
       <div class="controls">
-        <a href="/">Kembali ke Halaman Unduh Data</a>
+        {% if show_preprocess_results %}
+        <a href="{{ url_for('train_model') }}">Latih Ulang Model</a>
+        {% if model_loaded_from_cache %}
+        <a
+          href="{{ url_for('predict_price') }}"
+          style="background-color: #28a745"
+          >Gunakan Model yang Dimuat (Prediksi)</a
+        >
+        {% endif %}
+        <a href="/">Kembali ke Unduh Data</a>
+        {% else %}
+        <p>Silakan proses data terlebih dahulu dari halaman unduh.</p>
+        <a href="/">Kembali ke Unduh Data</a>
+        {% endif %}
       </div>
 
-      {% if data_html and show_preprocess_results %}
-      <h2>Cuplikan Data Setelah Preprocessing ({{ total_records }} record)</h2>
-      <div class="data-display">{{ data_html | safe }}</div>
-      <p style="text-align: center; font-style: italic">
-        Data di atas telah dimuat dari database dan dinormalisasi (khusus 'Adj
-        Close').
-      </p>
-
-      {% if X_shape and y_shape %}
-      <h2 style="margin-top: 30px">Informasi Sequence Data dan Model</h2>
-      <p>
-        Data telah diubah menjadi sequence untuk model GRU dengan **lookback
-        window {{ lookback_window }} hari**.
-      </p>
-      <ul>
-        <li>**Input Sequence (X):** Bentuk `{{ X_shape }}`</li>
-        <li>**Target (y):** Bentuk `{{ y_shape }}`</li>
-        <li>**Ukuran Hidden Layer GRU (hidden_dim):** `{{ hidden_dim }}`</li>
-      </ul>
-      <p style="font-style: italic">
-        Setiap sampel di X adalah urutan {{ lookback_window }} harga sebelumnya.
-        Setiap sampel di y adalah harga target berikutnya.
-      </p>
-      {% endif %} {% endif %}
-
-      <div class="controls" style="margin-top: 30px">
-        <p>Data sudah siap untuk pelatihan!</p>
-        <button onclick="location.href='/train';">Latih Model GRU</button>
+      {% if show_preprocess_results %}
+      <div class="info-box">
+        <h2>Ringkasan Preprocessing</h2>
+        <p>Total Record Data: {{ total_records }}</p>
+        <p>Lookback Window (Sequence Length): {{ lookback_window }}</p>
+        <p>Input Dim (Jumlah Fitur): {{ input_dim }}</p>
+        <p>Hidden Dim GRU: {{ hidden_dim }}</p>
+        <p>Dropout Rate GRU: {{ dropout_rate }}</p>
+        <p>Shape X_train: {{ X_shape_train }}</p>
+        <p>Shape y_train: {{ y_shape_train }}</p>
+        <p>Shape X_val: {{ X_shape_val }}</p>
+        <p>Shape y_val: {{ y_val_data }}</p>
       </div>
+
+      <h2>Data yang Diproses (10 baris pertama & 10 baris terakhir)</h2>
+      <div class="data-display">{{ data_html|safe }}</div>
+      {% endif %}
     </div>
   </body>
 </html>
