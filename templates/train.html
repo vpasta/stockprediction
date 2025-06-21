@@ -4,6 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Pelatihan Model GRU</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
       body {
         font-family: Arial, sans-serif;
@@ -70,13 +71,21 @@
         background-color: #0056b3;
       }
       .summary-list {
-        list-style: none;
+        list-style-type: none;
         padding: 0;
         text-align: center;
       }
       .summary-list li {
-        margin-bottom: 10px;
-        font-size: 1.1em;
+        margin-bottom: 5px;
+      }
+      canvas {
+        max-width: 100%;
+        height: auto; /* Memastikan responsif */
+        margin-top: 20px;
+        background-color: #fff;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        padding: 15px;
       }
     </style>
   </head>
@@ -102,30 +111,77 @@
       <ul class="summary-list">
         <li><strong>Epochs:</strong> {{ epochs }}</li>
         <li><strong>Learning Rate:</strong> {{ learning_rate }}</li>
-        <li><strong>Loss Akhir:</strong> {{ "%.6f"|format(final_loss) }}</li>
+        <li><strong>Dropout Rate:</strong> {{ dropout_rate }}</li>
+        <li>
+          <strong>Loss Akhir (Train):</strong> {{ "%.6f"|format(final_loss) }}
+        </li>
+        <li>
+          <strong>Loss Akhir (Val Best):</strong> {{
+          "%.6f"|format(final_val_loss) }}
+        </li>
         <li>
           <strong>Durasi Pelatihan:</strong> {{ "%.2f"|format(training_duration)
           }} detik
         </li>
       </ul>
 
-      {#
-      <h2>Loss per Epoch</h2>
-      <pre
-        style="
-          max-height: 200px;
-          overflow-y: scroll;
-          background-color: #eee;
-          padding: 10px;
-          border-radius: 4px;
-        "
-      >
-            {% for loss_val in losses %}
-                Epoch {{ loop.index }}: {{ "%.6f"|format(loss_val) }}
-            {% endfor %}
-        </pre
-      >
-      #}
+      <h2>Grafik Loss Pelatihan</h2>
+      <canvas id="lossChart"></canvas>
+
+      <script>
+        // Ambil data dari Flask
+        const trainLosses = {{ losses | tojson }};
+        const valLosses = {{ val_losses | tojson }};
+        const epochs = Array.from({length: trainLosses.length}, (_, i) => i + 1);
+
+        const ctx = document.getElementById('lossChart').getContext('2d');
+        const lossChart = new Chart(ctx, {
+            type: 'line', // Jenis grafik garis
+            data: {
+                labels: epochs, // Label sumbu X (Epochs)
+                datasets: [
+                    {
+                        label: 'Training Loss',
+                        data: trainLosses,
+                        borderColor: 'rgb(75, 192, 192)', // Warna garis untuk training loss
+                        tension: 0.1,
+                        fill: false // Jangan isi area di bawah garis
+                    },
+                    {
+                        label: 'Validation Loss',
+                        data: valLosses,
+                        borderColor: 'rgb(255, 99, 132)', // Warna garis untuk validation loss
+                        tension: 0.1,
+                        fill: false
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: true,
+                scales: {
+                    x: {
+                        title: {
+                            display: true,
+                            text: 'Epoch'
+                        }
+                    },
+                    y: {
+                        title: {
+                            display: true,
+                            text: 'Loss (MSE)'
+                        }
+                    }
+                },
+                plugins: {
+                    title: {
+                        display: true,
+                        text: 'Training and Validation Loss over Epochs'
+                    }
+                }
+            }
+        });
+      </script>
     </div>
   </body>
 </html>

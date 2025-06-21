@@ -6,6 +6,7 @@ import os
 from datetime import datetime, timedelta
 import time
 import traceback
+import sys
 import config
 from utils.db_models import db, StockData
 from utils.gru_model import GRU
@@ -23,6 +24,7 @@ db.init_app(app)
 
 DATA_DIR = config.DATA_DIR
 MODEL_DIR = config.MODEL_DIR
+LOG_DIR = config.LOG_DIR
 
 @app.route('/', methods=['GET', 'POST'])
 def index():
@@ -175,9 +177,13 @@ def preprocess():
     HIDDEN_DIM = config.DEFAULT_HIDDEN_DIM 
     OUTPUT_DIM = 1
     DROPOUT_RATE = config.DEFAULT_DROPOUT_RATE 
+    LEARNING_RATE = config.DEFAULT_LEARNING_RATE
+    
+    lr_str = str(LEARNING_RATE).replace('.', '')
+    do_str = str(DROPOUT_RATE).replace('.', '')
 
     gru_model = None
-    model_filename = os.path.join(MODEL_DIR, f'GRU_weights_{ticker}_H{HIDDEN_DIM}_L{LOOKBACK_WINDOW}_F{INPUT_DIM}_D{int(DROPOUT_RATE*100)}.npz')
+    model_filename = os.path.join(MODEL_DIR, f'GRU_weights_{ticker}_H{HIDDEN_DIM}_L{LOOKBACK_WINDOW}_F{INPUT_DIM}_LR{lr_str}_DO{do_str}.npz')
 
     model_loaded_from_cache = False 
 
@@ -230,6 +236,7 @@ def preprocess():
                            total_records=len(df),
                            show_preprocess_results=True,
                            lookback_window=LOOKBACK_WINDOW,
+                           learning_rate=LEARNING_RATE,
                            X_shape_train=X_train_data.shape,
                            y_shape_train=y_train_data.shape,
                            X_shape_val=X_val_data.shape,
@@ -268,6 +275,9 @@ def train_model():
     LEARNING_RATE = config.DEFAULT_LEARNING_RATE
     EARLY_STOPPING_PATIENCE = config.EARLY_STOPPING_PATIENCE
     BATCH_SIZE = config.DEFAULT_BATCH_SIZE 
+    
+    lr_str = str(LEARNING_RATE).replace('.', '')
+    do_str = str(DROPOUT_RATE).replace('.', '')
 
     losses = []
     val_losses = []
@@ -277,8 +287,20 @@ def train_model():
     patience_counter = 0
     best_model_weights = None
 
-    flash(f"Memulai pelatihan model GRU untuk {ticker}...", 'info')
-    print(f"--- Memulai pelatihan model GRU untuk {ticker} (Epochs: {EPOCHS}, LR: {LEARNING_RATE}, Dropout: {DROPOUT_RATE}, Patience: {EARLY_STOPPING_PATIENCE}, Batch Size: {BATCH_SIZE}) ---")
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    log_filename = os.path.join(LOG_DIR, f'train_log_{ticker}_LR{LEARNING_RATE}_DO{DROPOUT_RATE}_BS{BATCH_SIZE}_W{lookback_window}_{timestamp}.txt')
+    
+    # original_stdout = sys.stdout
+    # sys.stdout = open(log_filename, 'a') 
+
+    # Atau, yang lebih bersih: kumpulkan log dalam list dan tulis di akhir
+    current_training_logs = []
+    def log_to_both(message):
+        print(message) # Print to console
+        current_training_logs.append(message) # Add to list for file
+
+    log_to_both(f"--- Memulai pelatihan model GRU untuk {ticker} (Epochs: {EPOCHS}, LR: {LEARNING_RATE}, Dropout: {DROPOUT_RATE}, Patience: {EARLY_STOPPING_PATIENCE}, Batch Size: {BATCH_SIZE}, Lookback Window: {lookback_window}) ---")
+
 
     try:
         for epoch in range(EPOCHS):
@@ -326,31 +348,32 @@ def train_model():
             avg_val_loss = total_val_loss / num_val_batches
             val_losses.append(avg_val_loss)
 
-            flash(f"Epoch {epoch+1}/{EPOCHS}, Train Loss: {avg_loss:.6f}, Val Loss: {avg_val_loss:.6f}", 'info')
-            print(f"Epoch {epoch+1}/{EPOCHS}, Train Loss: {avg_loss:.6f}, Val Loss: {avg_val_loss:.6f}")
+            log_message = f"Epoch {epoch+1}/{EPOCHS}, Train Loss: {avg_loss:.6f}, Val Loss: {avg_val_loss:.6f}"
+            log_to_both(log_message)
 
             # Logika Early Stopping
             if avg_val_loss < best_val_loss:
                 best_val_loss = avg_val_loss
                 patience_counter = 0
                 best_model_weights = gru_model.get_weights()
-                flash("Validation loss meningkat. Menyimpan bobot model terbaik.", 'info')
+                log_to_both("Validation loss meningkat. Menyimpan bobot model terbaik.")
             else:
                 patience_counter += 1
-                flash(f"Validation loss tidak meningkat. Patience: {patience_counter}/{EARLY_STOPPING_PATIENCE}", 'warning')
+                log_to_both(f"Validation loss tidak meningkat. Patience: {patience_counter}/{EARLY_STOPPING_PATIENCE}")
 
             if patience_counter >= EARLY_STOPPING_PATIENCE:
-                flash(f"Early stopping dipicu setelah {epoch + 1} epoch tanpa peningkatan validasi loss.", 'warning')
-                print(f"--- Early stopping dipicu setelah {epoch + 1} epoch ---")
+                log_to_both(f"Early stopping dipicu setelah {epoch + 1} epoch tanpa peningkatan validasi loss.")
+                log_to_both("--- Early stopping dipicu ---")
                 break
 
-        print("--- Pelatihan selesai dengan sukses ---")
+        log_to_both("--- Pelatihan selesai dengan sukses ---")
 
     except Exception as e:
         flash(f"Terjadi error fatal saat pelatihan: {e}", 'error')
-        print(f"--- ERROR FATAL SAAT PELATIHAN ---")
-        traceback.print_exc()
-        print(f"--- ERROR FATAL SAAT PELATIHAN ---")
+        log_to_both(f"--- ERROR FATAL SAAT PELATIHAN: {e} ---")
+        traceback.print_exc() 
+        log_to_both(traceback.format_exc()) 
+        log_to_both(f"--- ERROR FATAL SAAT PELATIHAN ---")
         return render_template('train.html',
                                ticker=ticker,
                                epochs=EPOCHS,
@@ -365,18 +388,18 @@ def train_model():
     end_time = time.time()
     training_duration = end_time - start_time
 
-    model_filename = os.path.join(MODEL_DIR, f'GRU_weights_{ticker}_H{HIDDEN_DIM}_L{lookback_window}_F{INPUT_DIM}_D{int(DROPOUT_RATE*100)}.npz')
+    model_filename = os.path.join(MODEL_DIR, f'GRU_weights_{ticker}_H{HIDDEN_DIM}_L{lookback_window}_F{INPUT_DIM}_LR{lr_str}_DO{do_str}.npz')
 
     try:
         if best_model_weights is not None:
             np.savez(model_filename, **best_model_weights)
-            flash(f"Bobot model TERBAIK berhasil disimpan ke: {os.path.basename(model_filename)}", 'success')
+            log_to_both(f"Bobot model TERBAIK berhasil disimpan ke: {os.path.basename(model_filename)}")
             gru_model.set_weights(best_model_weights) 
         else: 
             np.savez(model_filename, **gru_model.get_weights())
-            flash(f"Bobot model terakhir berhasil disimpan ke: {os.path.basename(model_filename)}", 'success')
+            log_to_both(f"Bobot model terakhir berhasil disimpan ke: {os.path.basename(model_filename)}")
     except Exception as e:
-        flash(f"Gagal menyimpan bobot model: {e}", 'error')
+        log_to_both(f"ERROR: Gagal menyimpan bobot model: {e}")
         print(f"ERROR: Gagal menyimpan bobot model: {e}")
 
     final_loss = losses[-1] if losses else 0
@@ -384,8 +407,13 @@ def train_model():
     if best_model_weights is not None and best_val_loss != float('inf'):
         final_val_loss = best_val_loss 
 
-    flash(f"Pelatihan selesai dalam {training_duration:.2f} detik. Final Train Loss: {final_loss:.6f}, Final Val Loss (best): {final_val_loss:.6f}", 'success')
+    log_to_both(f"Pelatihan selesai dalam {training_duration:.2f} detik. Final Train Loss: {final_loss:.6f}, Final Val Loss (best): {final_val_loss:.6f}")
 
+    with open(log_filename, 'w') as f:
+        for log_line in current_training_logs:
+            f.write(log_line + '\n')
+    flash(f"Log pelatihan disimpan ke: {os.path.basename(log_filename)}", 'info')
+    
     return render_template('train.html',
                            ticker=ticker,
                            epochs=EPOCHS,
