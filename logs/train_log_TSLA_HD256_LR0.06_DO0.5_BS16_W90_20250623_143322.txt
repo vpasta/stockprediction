@@ -1,0 +1,227 @@
+--- Memulai pelatihan model GRU untuk TSLA ---
+Tanggal dan Waktu Pelatihan: 2025-06-23 14:33:22
+==================================================
+Parameter Konfigurasi Model:
+- Ticker Saham: TSLA
+- Lookback Window: 90 hari
+- Dimensi Tersembunyi (Hidden Dim): 256
+- Jumlah Fitur Input: 15
+- Epochs Maksimal: 200
+- Learning Rate: 0.06
+- Dropout Rate: 0.5
+- Batch Size: 16
+- Rasio Pembagian Data (Train/Val): 80% / 20%
+- Early Stopping Patience: 30 Epoch
+==================================================
+
+Epoch 1/200, Train Loss: 0.024952, Val Loss: 0.029146
+Validation loss meningkat. Menyimpan bobot model terbaik.
+Epoch 2/200, Train Loss: 0.011805, Val Loss: 0.027216
+Validation loss meningkat. Menyimpan bobot model terbaik.
+Epoch 3/200, Train Loss: 0.008741, Val Loss: 0.015930
+Validation loss meningkat. Menyimpan bobot model terbaik.
+Epoch 4/200, Train Loss: 0.006789, Val Loss: 0.015046
+Validation loss meningkat. Menyimpan bobot model terbaik.
+Epoch 5/200, Train Loss: 0.005429, Val Loss: 0.007110
+Validation loss meningkat. Menyimpan bobot model terbaik.
+Epoch 6/200, Train Loss: 0.003954, Val Loss: 0.007656
+Validation loss tidak meningkat. Patience: 1/30
+Epoch 7/200, Train Loss: 0.003400, Val Loss: 0.004594
+Validation loss meningkat. Menyimpan bobot model terbaik.
+Epoch 8/200, Train Loss: 0.003213, Val Loss: 0.003459
+Validation loss meningkat. Menyimpan bobot model terbaik.
+Epoch 9/200, Train Loss: 0.002680, Val Loss: 0.002906
+Validation loss meningkat. Menyimpan bobot model terbaik.
+Epoch 10/200, Train Loss: 0.002754, Val Loss: 0.002801
+Validation loss meningkat. Menyimpan bobot model terbaik.
+Epoch 11/200, Train Loss: 0.002638, Val Loss: 0.003119
+Validation loss tidak meningkat. Patience: 1/30
+Epoch 12/200, Train Loss: 0.002563, Val Loss: 0.002596
+Validation loss meningkat. Menyimpan bobot model terbaik.
+Epoch 13/200, Train Loss: 0.002456, Val Loss: 0.002980
+Validation loss tidak meningkat. Patience: 1/30
+Epoch 14/200, Train Loss: 0.002254, Val Loss: 0.003744
+Validation loss tidak meningkat. Patience: 2/30
+Epoch 15/200, Train Loss: 0.002368, Val Loss: 0.002461
+Validation loss meningkat. Menyimpan bobot model terbaik.
+Epoch 16/200, Train Loss: 0.001992, Val Loss: 0.002522
+Validation loss tidak meningkat. Patience: 1/30
+Epoch 17/200, Train Loss: 0.002102, Val Loss: 0.002449
+Validation loss meningkat. Menyimpan bobot model terbaik.
+Epoch 18/200, Train Loss: 0.001769, Val Loss: 0.002797
+Validation loss tidak meningkat. Patience: 1/30
+Epoch 19/200, Train Loss: 0.001714, Val Loss: 0.002150
+Validation loss meningkat. Menyimpan bobot model terbaik.
+Epoch 20/200, Train Loss: 0.001734, Val Loss: 0.002095
+Validation loss meningkat. Menyimpan bobot model terbaik.
+Epoch 21/200, Train Loss: 0.001742, Val Loss: 0.002538
+Validation loss tidak meningkat. Patience: 1/30
+Epoch 22/200, Train Loss: 0.001682, Val Loss: 0.002068
+Validation loss meningkat. Menyimpan bobot model terbaik.
+Epoch 23/200, Train Loss: 0.001681, Val Loss: 0.002090
+Validation loss tidak meningkat. Patience: 1/30
+Epoch 24/200, Train Loss: 0.001662, Val Loss: 0.002042
+Validation loss meningkat. Menyimpan bobot model terbaik.
+Epoch 25/200, Train Loss: 0.001532, Val Loss: 0.002315
+Validation loss tidak meningkat. Patience: 1/30
+Epoch 26/200, Train Loss: 0.001494, Val Loss: 0.001952
+Validation loss meningkat. Menyimpan bobot model terbaik.
+Epoch 27/200, Train Loss: 0.001503, Val Loss: 0.001868
+Validation loss meningkat. Menyimpan bobot model terbaik.
+Epoch 28/200, Train Loss: 0.001538, Val Loss: 0.001952
+Validation loss tidak meningkat. Patience: 1/30
+Epoch 29/200, Train Loss: 0.001462, Val Loss: 0.001868
+Validation loss meningkat. Menyimpan bobot model terbaik.
+Epoch 30/200, Train Loss: 0.001437, Val Loss: 0.001924
+Validation loss tidak meningkat. Patience: 1/30
+Epoch 31/200, Train Loss: 0.001356, Val Loss: 0.001935
+Validation loss tidak meningkat. Patience: 2/30
+Epoch 32/200, Train Loss: 0.001387, Val Loss: 0.001857
+Validation loss meningkat. Menyimpan bobot model terbaik.
+Epoch 33/200, Train Loss: 0.001466, Val Loss: 0.001807
+Validation loss meningkat. Menyimpan bobot model terbaik.
+Epoch 34/200, Train Loss: 0.001337, Val Loss: 0.001817
+Validation loss tidak meningkat. Patience: 1/30
+Epoch 35/200, Train Loss: 0.001381, Val Loss: 0.001822
+Validation loss tidak meningkat. Patience: 2/30
+Epoch 36/200, Train Loss: 0.001288, Val Loss: 0.001886
+Validation loss tidak meningkat. Patience: 3/30
+Epoch 37/200, Train Loss: 0.001214, Val Loss: 0.001845
+Validation loss tidak meningkat. Patience: 4/30
+Epoch 38/200, Train Loss: 0.001223, Val Loss: 0.001884
+Validation loss tidak meningkat. Patience: 5/30
+Epoch 39/200, Train Loss: 0.001173, Val Loss: 0.001895
+Validation loss tidak meningkat. Patience: 6/30
+Epoch 40/200, Train Loss: 0.001265, Val Loss: 0.001773
+Validation loss meningkat. Menyimpan bobot model terbaik.
+Epoch 41/200, Train Loss: 0.001081, Val Loss: 0.001785
+Validation loss tidak meningkat. Patience: 1/30
+Epoch 42/200, Train Loss: 0.001059, Val Loss: 0.001842
+Validation loss tidak meningkat. Patience: 2/30
+Epoch 43/200, Train Loss: 0.001223, Val Loss: 0.001785
+Validation loss tidak meningkat. Patience: 3/30
+Epoch 44/200, Train Loss: 0.001046, Val Loss: 0.001779
+Validation loss tidak meningkat. Patience: 4/30
+Epoch 45/200, Train Loss: 0.001106, Val Loss: 0.001908
+Validation loss tidak meningkat. Patience: 5/30
+Epoch 46/200, Train Loss: 0.001164, Val Loss: 0.001739
+Validation loss meningkat. Menyimpan bobot model terbaik.
+Epoch 47/200, Train Loss: 0.001091, Val Loss: 0.001813
+Validation loss tidak meningkat. Patience: 1/30
+Epoch 48/200, Train Loss: 0.001213, Val Loss: 0.001739
+Validation loss meningkat. Menyimpan bobot model terbaik.
+Epoch 49/200, Train Loss: 0.001050, Val Loss: 0.001805
+Validation loss tidak meningkat. Patience: 1/30
+Epoch 50/200, Train Loss: 0.001107, Val Loss: 0.001817
+Validation loss tidak meningkat. Patience: 2/30
+Epoch 51/200, Train Loss: 0.001163, Val Loss: 0.001874
+Validation loss tidak meningkat. Patience: 3/30
+Epoch 52/200, Train Loss: 0.001102, Val Loss: 0.001820
+Validation loss tidak meningkat. Patience: 4/30
+Epoch 53/200, Train Loss: 0.001026, Val Loss: 0.001947
+Validation loss tidak meningkat. Patience: 5/30
+Epoch 54/200, Train Loss: 0.001018, Val Loss: 0.001816
+Validation loss tidak meningkat. Patience: 6/30
+Epoch 55/200, Train Loss: 0.001030, Val Loss: 0.002054
+Validation loss tidak meningkat. Patience: 7/30
+Epoch 56/200, Train Loss: 0.000949, Val Loss: 0.001706
+Validation loss meningkat. Menyimpan bobot model terbaik.
+Epoch 57/200, Train Loss: 0.001034, Val Loss: 0.001872
+Validation loss tidak meningkat. Patience: 1/30
+Epoch 58/200, Train Loss: 0.001039, Val Loss: 0.002002
+Validation loss tidak meningkat. Patience: 2/30
+Epoch 59/200, Train Loss: 0.000990, Val Loss: 0.001736
+Validation loss tidak meningkat. Patience: 3/30
+Epoch 60/200, Train Loss: 0.001002, Val Loss: 0.001921
+Validation loss tidak meningkat. Patience: 4/30
+Epoch 61/200, Train Loss: 0.001082, Val Loss: 0.001745
+Validation loss tidak meningkat. Patience: 5/30
+Epoch 62/200, Train Loss: 0.000933, Val Loss: 0.001846
+Validation loss tidak meningkat. Patience: 6/30
+Epoch 63/200, Train Loss: 0.001019, Val Loss: 0.002269
+Validation loss tidak meningkat. Patience: 7/30
+Epoch 64/200, Train Loss: 0.000905, Val Loss: 0.001839
+Validation loss tidak meningkat. Patience: 8/30
+Epoch 65/200, Train Loss: 0.001038, Val Loss: 0.001923
+Validation loss tidak meningkat. Patience: 9/30
+Epoch 66/200, Train Loss: 0.000975, Val Loss: 0.001789
+Validation loss tidak meningkat. Patience: 10/30
+Epoch 67/200, Train Loss: 0.000966, Val Loss: 0.002146
+Validation loss tidak meningkat. Patience: 11/30
+Epoch 68/200, Train Loss: 0.000937, Val Loss: 0.001885
+Validation loss tidak meningkat. Patience: 12/30
+Epoch 69/200, Train Loss: 0.000932, Val Loss: 0.001870
+Validation loss tidak meningkat. Patience: 13/30
+Epoch 70/200, Train Loss: 0.000985, Val Loss: 0.001689
+Validation loss meningkat. Menyimpan bobot model terbaik.
+Epoch 71/200, Train Loss: 0.000924, Val Loss: 0.001732
+Validation loss tidak meningkat. Patience: 1/30
+Epoch 72/200, Train Loss: 0.000961, Val Loss: 0.001814
+Validation loss tidak meningkat. Patience: 2/30
+Epoch 73/200, Train Loss: 0.001000, Val Loss: 0.001823
+Validation loss tidak meningkat. Patience: 3/30
+Epoch 74/200, Train Loss: 0.000910, Val Loss: 0.002085
+Validation loss tidak meningkat. Patience: 4/30
+Epoch 75/200, Train Loss: 0.000926, Val Loss: 0.001877
+Validation loss tidak meningkat. Patience: 5/30
+Epoch 76/200, Train Loss: 0.000983, Val Loss: 0.001761
+Validation loss tidak meningkat. Patience: 6/30
+Epoch 77/200, Train Loss: 0.000923, Val Loss: 0.001757
+Validation loss tidak meningkat. Patience: 7/30
+Epoch 78/200, Train Loss: 0.000911, Val Loss: 0.001829
+Validation loss tidak meningkat. Patience: 8/30
+Epoch 79/200, Train Loss: 0.000929, Val Loss: 0.001713
+Validation loss tidak meningkat. Patience: 9/30
+Epoch 80/200, Train Loss: 0.000923, Val Loss: 0.001781
+Validation loss tidak meningkat. Patience: 10/30
+Epoch 81/200, Train Loss: 0.000913, Val Loss: 0.001720
+Validation loss tidak meningkat. Patience: 11/30
+Epoch 82/200, Train Loss: 0.000952, Val Loss: 0.001802
+Validation loss tidak meningkat. Patience: 12/30
+Epoch 83/200, Train Loss: 0.000876, Val Loss: 0.001867
+Validation loss tidak meningkat. Patience: 13/30
+Epoch 84/200, Train Loss: 0.000894, Val Loss: 0.001879
+Validation loss tidak meningkat. Patience: 14/30
+Epoch 85/200, Train Loss: 0.000940, Val Loss: 0.001807
+Validation loss tidak meningkat. Patience: 15/30
+Epoch 86/200, Train Loss: 0.000918, Val Loss: 0.001849
+Validation loss tidak meningkat. Patience: 16/30
+Epoch 87/200, Train Loss: 0.000940, Val Loss: 0.001787
+Validation loss tidak meningkat. Patience: 17/30
+Epoch 88/200, Train Loss: 0.000861, Val Loss: 0.002047
+Validation loss tidak meningkat. Patience: 18/30
+Epoch 89/200, Train Loss: 0.000920, Val Loss: 0.001888
+Validation loss tidak meningkat. Patience: 19/30
+Epoch 90/200, Train Loss: 0.000913, Val Loss: 0.001855
+Validation loss tidak meningkat. Patience: 20/30
+Epoch 91/200, Train Loss: 0.001048, Val Loss: 0.002705
+Validation loss tidak meningkat. Patience: 21/30
+Epoch 92/200, Train Loss: 0.000925, Val Loss: 0.001747
+Validation loss tidak meningkat. Patience: 22/30
+Epoch 93/200, Train Loss: 0.000880, Val Loss: 0.001735
+Validation loss tidak meningkat. Patience: 23/30
+Epoch 94/200, Train Loss: 0.000872, Val Loss: 0.001763
+Validation loss tidak meningkat. Patience: 24/30
+Epoch 95/200, Train Loss: 0.000909, Val Loss: 0.002762
+Validation loss tidak meningkat. Patience: 25/30
+Epoch 96/200, Train Loss: 0.000803, Val Loss: 0.002227
+Validation loss tidak meningkat. Patience: 26/30
+Epoch 97/200, Train Loss: 0.000881, Val Loss: 0.001698
+Validation loss tidak meningkat. Patience: 27/30
+Epoch 98/200, Train Loss: 0.000925, Val Loss: 0.001805
+Validation loss tidak meningkat. Patience: 28/30
+Epoch 99/200, Train Loss: 0.000842, Val Loss: 0.001969
+Validation loss tidak meningkat. Patience: 29/30
+Epoch 100/200, Train Loss: 0.000882, Val Loss: 0.001827
+Validation loss tidak meningkat. Patience: 30/30
+Early stopping dipicu setelah 100 epoch tanpa peningkatan validasi loss.
+--- Early stopping dipicu ---
+--- Pelatihan selesai dengan sukses ---
+Bobot model TERBAIK berhasil disimpan ke: GRU_weights_TSLA_H256_L90_F15_LR006_DO05.npz
+
+--- Ringkasan Pelatihan Akhir ---
+Durasi Pelatihan Total: 993.97 detik
+Final Train Loss (Epoch terakhir): 0.000882
+Final Val Loss (Best): 0.001689
+Model Terbaik Disimpan: GRU_weights_TSLA_H256_L90_F15_LR006_DO05.npz
+--------------------------------------------------

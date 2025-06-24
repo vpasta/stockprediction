@@ -1,14 +1,16 @@
-from flask import Flask, render_template, request, send_file, redirect, url_for, flash
+from flask import Flask, render_template, request, send_file, redirect, url_for, flash, session
+from werkzeug.security import generate_password_hash, check_password_hash
 import yfinance as yf
 import pandas as pd
 import numpy as np
 import os
 from datetime import datetime, timedelta
+from functools import wraps
 import time
 import traceback
 import sys
 import config
-from utils.db_models import db, StockData
+from utils.db_models import db, StockData, User, SavedModel, PredictionDetail
 from utils.gru_model import GRU
 from utils.data_preprocessing import calculate_technical_indicators, create_sequences
 from utils.loss_functions import mse_loss, mse_loss_derivative, mae_loss, mape_loss
@@ -16,9 +18,11 @@ from sklearn.preprocessing import MinMaxScaler
 
 app = Flask(__name__)
 
-app.secret_key = config.SECRET_KEY # Gunakan dari config
+app.secret_key = config.SECRET_KEY 
 app.config['SQLALCHEMY_DATABASE_URI'] = f'mysql+mysqlconnector://{config.DB_USER}:{config.DB_PASSWORD}@{config.DB_HOST}:{config.DB_PORT}/{config.DB_NAME}'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
+app.permanent_session_lifetime = timedelta(days=7)
 
 db.init_app(app) 
 
@@ -26,7 +30,92 @@ DATA_DIR = config.DATA_DIR
 MODEL_DIR = config.MODEL_DIR
 LOG_DIR = config.LOG_DIR
 
+def log_to_both(message):
+    print(message)
+
+def login_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if 'logged_in' not in session or not session['logged_in']:
+            flash('Anda Harus Login Terlebih Dahulu', 'error')
+            return redirect(url_for('login'))
+        return f(*args, **kwargs)
+    return decorated_function
+
+def admin_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if 'logged_in' not in session or not session['logged_in']:
+            flash('Anda harus Login terlebih dahulu.', 'error')
+            return redirect(url_for('login'))
+        if session.get('user_role') != 'admin':
+            flash('Anda tidak memiliki izin untuk mengakses halaman ini.', 'error')
+            return redirect(url_for('dashboard_user'))
+        return f(*args, **kwargs)
+    return decorated_function
+
+@app.route('/register', methods=['GET', 'POST'])
+def register():
+    if request.method == 'POST':
+        username = request.form['username']
+        password = request.form['password']
+        role = request.form.get('role', 'free_user') 
+
+        if not username or not password:
+            flash('Username dan password tidak boleh kosong.', 'error')
+            return render_template('register.html')
+
+        existing_user = User.query.filter_by(username=username).first()
+        if existing_user:
+            flash('Username sudah ada. Silakan pilih username lain.', 'error')
+            return render_template('register.html')
+
+        hashed_password = generate_password_hash(password)
+        new_user = User(username=username, password_hash=hashed_password, role=role)
+        db.session.add(new_user)
+        try:
+            db.session.commit()
+            flash(f'Pengguna {username} dengan peran {role} berhasil didaftarkan. Silakan login.', 'success')
+            return redirect(url_for('login'))
+        except Exception as e:
+            db.session.rollback()
+            flash(f'Terjadi kesalahan saat pendaftaran: {e}', 'error')
+            return render_template('register.html')
+    return render_template('register.html')
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        username = request.form['username']
+        password = request.form['password']
+
+        user = User.query.filter_by(username=username).first()
+
+        if user and check_password_hash(user.password_hash, password):
+            session['logged_in'] = True
+            session['username'] = user.username
+            session['user_role'] = user.role
+            flash(f'Selamat datang, {user.username}!', 'success')
+
+            if user.role == 'admin':
+                return redirect(url_for('index')) 
+            else:
+                return redirect(url_for('dashboard_user')) 
+        else:
+            flash('Username atau password salah.', 'error')
+    return render_template('login.html')
+
+@app.route('/logout')
+def logout():
+    session.pop('logged_in', None)
+    session.pop('username', None)
+    session.pop('user_role', None)
+    session.clear()
+    flash('Anda telah berhasil logout.', 'info')
+    return redirect(url_for('login'))
+
 @app.route('/', methods=['GET', 'POST'])
+@admin_required
 def index():
     default_ticker = config.DEFAULT_TICKER
     default_end_date = datetime.now().strftime('%Y-%m-%d')
@@ -103,10 +192,12 @@ def index():
     return render_template('index.html', default_ticker=default_ticker, default_start_date=default_start_date, default_end_date=default_end_date)
 
 @app.route('/download/<filename>')
+@admin_required
 def download_file(filename):
     return send_file(os.path.join(DATA_DIR, filename), as_attachment=True)
 
 @app.route('/preprocess', methods=['GET', 'POST'])
+@admin_required
 def preprocess():
     ticker = request.args.get('ticker', config.DEFAULT_TICKER).upper()
 
@@ -143,7 +234,8 @@ def preprocess():
     print("-------------------------------------------------")
 
     features_to_scale = ['Open', 'High', 'Low', 'Close', 'Adj Close', 'Volume',
-                         'SMA_10', 'SMA_20', 'EMA_10', 'EMA_20', 'RSI']
+                         'SMA_10', 'SMA_20', 'EMA_10', 'EMA_20', 'RSI',
+                         'MACD', 'Signal_Line', 'MACD_Hist', 'ATR']
 
     for feature in features_to_scale:
         if feature not in df.columns:
@@ -158,12 +250,12 @@ def preprocess():
     app.config['scaler_all_features'] = scaler
     app.config['df_full_preprocessed'] = df.copy()
 
-    LOOKBACK_WINDOW = config.DEFAULT_LOOKBACK_WINDOW # Gunakan dari config
+    LOOKBACK_WINDOW = config.DEFAULT_LOOKBACK_WINDOW 
 
     adj_close_index_for_target = features_to_scale.index('Adj Close')
     X, y = create_sequences(scaled_data, LOOKBACK_WINDOW, adj_close_index_for_target)
 
-    TRAIN_SPLIT_RATIO = config.DEFAULT_TRAIN_SPLIT_RATIO # Gunakan dari config
+    TRAIN_SPLIT_RATIO = config.DEFAULT_TRAIN_SPLIT_RATIO 
     total_sequence_samples = X.shape[0]
     train_size_sequences = int(total_sequence_samples * TRAIN_SPLIT_RATIO)
 
@@ -221,6 +313,7 @@ def preprocess():
     app.config['output_dim'] = OUTPUT_DIM
     app.config['train_size_sequences'] = train_size_sequences
     app.config['dropout_rate'] = DROPOUT_RATE
+    app.config['learning_rate'] = LEARNING_RATE
 
     flash(f"Data {ticker} telah dimuat dari database dan diproses awal. Total {len(df)} record. "
           f"Sequence data (Train X: {X_train_data.shape}, Train y: {y_train_data.shape}, "
@@ -247,6 +340,7 @@ def preprocess():
                            model_loaded_from_cache=model_loaded_from_cache)
 
 @app.route('/train', methods=['GET'])
+@admin_required
 def train_model():
     ticker = config.DEFAULT_TICKER 
     X_train = app.config.get(f'X_train_{ticker}')
@@ -262,12 +356,16 @@ def train_model():
     HIDDEN_DIM = app.config.get('hidden_dim')
     OUTPUT_DIM = app.config.get('output_dim')
     DROPOUT_RATE = app.config.get('dropout_rate')
+    LEARNING_RATE = app.config.get('learning_rate')
 
     if X_train is None or y_train is None or X_val is None or y_val is None or gru_model is None or scaler is None:
         flash("Data atau model belum disiapkan. Silakan kunjungi halaman preprocess terlebih dahulu.", 'error')
         return redirect(url_for('preprocess', ticker=ticker))
 
-    if gru_model.input_dim != INPUT_DIM or gru_model.hidden_dim != HIDDEN_DIM or gru_model.output_dim != OUTPUT_DIM or gru_model.dropout_rate != DROPOUT_RATE:
+    if gru_model.hidden_dim != HIDDEN_DIM or \
+       gru_model.output_dim != OUTPUT_DIM or \
+       gru_model.dropout_rate != DROPOUT_RATE or \
+       gru_model.input_dim != INPUT_DIM: 
         flash("Dimensi atau dropout rate model yang dimuat tidak cocok dengan konfigurasi saat ini. Silakan inisialisasi ulang model di halaman Preprocessing.", 'error')
         return redirect(url_for('preprocess', ticker=ticker))
 
@@ -288,53 +386,60 @@ def train_model():
     best_model_weights = None
 
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-    log_filename = os.path.join(LOG_DIR, f'train_log_{ticker}_LR{LEARNING_RATE}_DO{DROPOUT_RATE}_BS{BATCH_SIZE}_W{lookback_window}_{timestamp}.txt')
-    
-    # original_stdout = sys.stdout
-    # sys.stdout = open(log_filename, 'a') 
+    log_filename = os.path.join(LOG_DIR, f'train_log_{ticker}_HD{HIDDEN_DIM}_LR{LEARNING_RATE}_DO{DROPOUT_RATE}_BS{BATCH_SIZE}_W{lookback_window}_{timestamp}.txt')
 
-    # Atau, yang lebih bersih: kumpulkan log dalam list dan tulis di akhir
     current_training_logs = []
     def log_to_both(message):
-        print(message) # Print to console
-        current_training_logs.append(message) # Add to list for file
+        print(message) 
+        current_training_logs.append(message) 
 
-    log_to_both(f"--- Memulai pelatihan model GRU untuk {ticker} (Epochs: {EPOCHS}, LR: {LEARNING_RATE}, Dropout: {DROPOUT_RATE}, Patience: {EARLY_STOPPING_PATIENCE}, Batch Size: {BATCH_SIZE}, Lookback Window: {lookback_window}) ---")
-
+    log_to_both(f"--- Memulai pelatihan model GRU untuk {ticker} ---")
+    log_to_both(f"Tanggal dan Waktu Pelatihan: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    log_to_both("==================================================")
+    log_to_both("Parameter Konfigurasi Model:")
+    log_to_both(f"- Ticker Saham: {ticker}")
+    log_to_both(f"- Lookback Window: {lookback_window} hari")
+    log_to_both(f"- Dimensi Tersembunyi (Hidden Dim): {HIDDEN_DIM}")
+    log_to_both(f"- Jumlah Fitur Input: {INPUT_DIM}") # F
+    log_to_both(f"- Epochs Maksimal: {EPOCHS}")
+    log_to_both(f"- Learning Rate: {LEARNING_RATE}")
+    log_to_both(f"- Dropout Rate: {DROPOUT_RATE}")
+    log_to_both(f"- Batch Size: {BATCH_SIZE}")
+    log_to_both(f"- Rasio Pembagian Data (Train/Val): {config.DEFAULT_TRAIN_SPLIT_RATIO*100:.0f}% / {(1 - config.DEFAULT_TRAIN_SPLIT_RATIO)*100:.0f}%")
+    log_to_both(f"- Early Stopping Patience: {EARLY_STOPPING_PATIENCE} Epoch")
+    log_to_both("==================================================\n")
 
     try:
         for epoch in range(EPOCHS):
             total_loss = 0
-            gru_model.set_training_mode(True) # Aktifkan dropout untuk pelatihan
+            gru_model.set_training_mode(True) 
 
-            # Acak indeks data pelatihan
             permutation = np.random.permutation(X_train.shape[0])
             X_train_shuffled = X_train[permutation]
             y_train_shuffled = y_train[permutation]
 
-            # Loop melalui mini-batch
-            num_batches = int(np.ceil(X_train_shuffled.shape[0] / BATCH_SIZE)) # Hitung jumlah batch
+            num_batches = int(np.ceil(X_train_shuffled.shape[0] / BATCH_SIZE)) 
             for i in range(num_batches):
                 start_idx = i * BATCH_SIZE
                 end_idx = min((i + 1) * BATCH_SIZE, X_train_shuffled.shape[0])
 
-                x_batch = X_train_shuffled[start_idx:end_idx] # Ambil batch X
-                y_batch = y_train_shuffled[start_idx:end_idx].reshape(-1, 1) # Ambil batch y dan reshape
+                x_batch = X_train_shuffled[start_idx:end_idx] 
+                y_batch = y_train_shuffled[start_idx:end_idx].reshape(-1, 1)
 
-                y_pred_scaled = gru_model.forward(x_batch) # Kirim batch ke forward pass
+                y_pred_scaled = gru_model.forward(x_batch) 
 
                 loss = mse_loss(y_pred_scaled, y_batch)
                 total_loss += loss
 
                 d_output = mse_loss_derivative(y_pred_scaled, y_batch)
-                gru_model.backward(d_output) # Kirim d_output ke backward pass
+                gru_model.backward(d_output) 
 
                 gru_model.update_weights(LEARNING_RATE)
 
             avg_loss = total_loss / num_batches
             losses.append(avg_loss)
 
-            gru_model.set_training_mode(False) # Nonaktifkan dropout untuk evaluasi validasi
+            gru_model.set_training_mode(False) 
             total_val_loss = 0
             num_val_batches = int(np.ceil(X_val.shape[0] / BATCH_SIZE))
             for i in range(num_val_batches):
@@ -351,7 +456,6 @@ def train_model():
             log_message = f"Epoch {epoch+1}/{EPOCHS}, Train Loss: {avg_loss:.6f}, Val Loss: {avg_val_loss:.6f}"
             log_to_both(log_message)
 
-            # Logika Early Stopping
             if avg_val_loss < best_val_loss:
                 best_val_loss = avg_val_loss
                 patience_counter = 0
@@ -407,7 +511,12 @@ def train_model():
     if best_model_weights is not None and best_val_loss != float('inf'):
         final_val_loss = best_val_loss 
 
-    log_to_both(f"Pelatihan selesai dalam {training_duration:.2f} detik. Final Train Loss: {final_loss:.6f}, Final Val Loss (best): {final_val_loss:.6f}")
+    log_to_both(f"\n--- Ringkasan Pelatihan Akhir ---")
+    log_to_both(f"Durasi Pelatihan Total: {training_duration:.2f} detik")
+    log_to_both(f"Final Train Loss (Epoch terakhir): {final_loss:.6f}")
+    log_to_both(f"Final Val Loss (Best): {final_val_loss:.6f}")
+    log_to_both(f"Model Terbaik Disimpan: {os.path.basename(model_filename)}")
+    log_to_both("--------------------------------------------------")
 
     with open(log_filename, 'w') as f:
         for log_line in current_training_logs:
@@ -427,6 +536,7 @@ def train_model():
 
 
 @app.route('/predict', methods=['GET'])
+@admin_required
 def predict_price():
     ticker = config.DEFAULT_TICKER 
     X_test_samples = app.config.get(f'X_val_{ticker}')
@@ -437,6 +547,10 @@ def predict_price():
     lookback_window = app.config.get('lookback_window')
     features_to_scale = app.config.get('features_to_scale')
     df_full_preprocessed = app.config.get('df_full_preprocessed')
+    
+    HIDDEN_DIM = app.config.get('hidden_dim')
+    INPUT_DIM = app.config.get('input_dim')
+    LEARNING_RATE = app.config.get('learning_rate')
     DROPOUT_RATE = app.config.get('dropout_rate') 
 
     if X_test_samples is None or y_true_scaled_test is None or gru_model is None or scaler is None or features_to_scale is None or df_full_preprocessed is None:
@@ -447,7 +561,7 @@ def predict_price():
 
     predictions_scaled = []
 
-    gru_model.set_training_mode(False) # Set model ke mode inferensi (dropout nonaktif)
+    gru_model.set_training_mode(False) 
     BATCH_SIZE = config.DEFAULT_BATCH_SIZE 
     num_test_batches = int(np.ceil(X_test_samples.shape[0] / BATCH_SIZE))
 
@@ -476,7 +590,6 @@ def predict_price():
     y_true_original_full = scaler.inverse_transform(y_true_scaled_padded)
     y_true_original = y_true_original_full[:, adj_close_index].reshape(-1, 1)
 
-    # Hitung metrik evaluasi
     rmse = np.sqrt(np.mean((predictions_original - y_true_original)**2))
     mae = mae_loss(predictions_original, y_true_original) 
     mape = mape_loss(predictions_original, y_true_original) 
@@ -495,11 +608,72 @@ def predict_price():
             'True Price': f"{y_true_original[i, 0]:.2f}",
             'Predicted Price': f"{predictions_original[i, 0]:.2f}"
         })
+        
+    full_prediction_data_for_db = [
+        {'date': predicted_dates[i],
+         'true_price': float(y_true_original[i, 0]),
+         'predicted_price': float(predictions_original[i, 0])}
+        for i in range(test_size)
+    ]
 
     display_results = prediction_results[-20:]
 
     flash(f"Prediksi berhasil dilakukan untuk {test_size} hari terakhir. RMSE: {rmse:.4f}, MAE: {mae:.4f}, MAPE: {mape:.2f}%", 'success')
 
+    try:
+        lr_str = str(LEARNING_RATE).replace('.', '')
+        do_str = str(DROPOUT_RATE).replace('.', '')
+        model_filepath = os.path.join(MODEL_DIR, f'GRU_weights_{ticker}_H{HIDDEN_DIM}_L{lookback_window}_F{INPUT_DIM}_LR{lr_str}_DO{do_str}.npz')
+
+        saved_model_entry = SavedModel.query.filter_by(model_filepath=model_filepath).first()
+
+        if saved_model_entry:
+            saved_model_entry.rmse = rmse
+            saved_model_entry.mae = mae
+            saved_model_entry.mape = mape
+            saved_model_entry.training_timestamp = datetime.now() 
+            db.session.add(saved_model_entry)
+            flash(f"Metrik model {os.path.basename(model_filepath)} berhasil diperbarui di database.", 'info')
+
+            PredictionDetail.query.filter_by(model_id=saved_model_entry.id).delete()
+            flash("Prediksi lama untuk model ini telah dihapus.", 'info')
+
+        else:
+            saved_model_entry = SavedModel(
+                ticker=ticker,
+                lookback_window=lookback_window,
+                hidden_dim=HIDDEN_DIM,
+                input_dim=INPUT_DIM,
+                learning_rate=LEARNING_RATE,
+                dropout_rate=DROPOUT_RATE,
+                rmse=rmse,
+                mae=mae,
+                mape=mape,
+                model_filepath=model_filepath,
+                training_timestamp=datetime.now()
+            )
+            db.session.add(saved_model_entry)
+            db.session.flush() 
+            flash(f"Model {os.path.basename(model_filepath)} berhasil disimpan ke database.", 'success')
+        
+        for pred_data in full_prediction_data_for_db:
+            prediction_detail = PredictionDetail(
+                model_id=saved_model_entry.id,
+                prediction_date=pred_data['date'],
+                true_price=pred_data['true_price'],
+                predicted_price=pred_data['predicted_price']
+            )
+            db.session.add(prediction_detail)
+        
+        db.session.commit()
+        flash("Detail prediksi berhasil disimpan ke database.", 'success')
+
+    except Exception as e:
+        db.session.rollback()
+        flash(f"Gagal menyimpan model atau prediksi ke database: {e}", 'error')
+        print(f"ERROR: Gagal menyimpan model atau prediksi ke database: {e}")
+        traceback.print_exc()
+    
     return render_template('predict.html',
                            ticker=ticker,
                            rmse=rmse,
@@ -507,8 +681,90 @@ def predict_price():
                            mape=mape, 
                            prediction_results=display_results,
                            total_predictions=test_size)
+    
+@app.route('/dashboard_user')
+@login_required 
+def dashboard_user():
+    available_models = SavedModel.query.filter_by(ticker=config.DEFAULT_TICKER).order_by(SavedModel.training_timestamp.desc()).all()
+    
+    model_choices = []
+    if available_models:
+        for model in available_models:
+            choice_text = (
+                f"TSLA - L{model.lookback_window} HD{model.hidden_dim} "
+                f"LR{model.learning_rate} DO{model.dropout_rate} "
+                f"(RMSE: {model.rmse:.2f} MAPE: {model.mape:.2f}%) - {model.training_timestamp.strftime('%Y-%m-%d %H:%M')}"
+            )
+            model_choices.append({'id': model.id, 'text': choice_text})
+    else:
+        flash("Belum ada model prediksi TSLA yang tersedia di database.", 'info')
+
+    flash("Selamat datang di Dashboard Pengguna! Pilih model prediksi yang ingin Anda lihat.", 'info')
+    return render_template('user_dashboard.html', model_choices=model_choices)
+
+@app.route('/free_user_predict_view', methods=['GET'])
+@login_required
+def free_user_predict_view():
+    model_id = request.args.get('model_id', type=int) 
+
+    if not model_id:
+        flash("Pilih model prediksi dari daftar di bawah.", 'info')
+        return redirect(url_for('dashboard_user')) 
+
+    saved_model = SavedModel.query.get(model_id)
+
+    if not saved_model:
+        flash("Model prediksi yang dipilih tidak ditemukan.", 'error')
+        return redirect(url_for('dashboard_user'))
+
+    prediction_details = PredictionDetail.query.filter_by(model_id=saved_model.id).order_by(PredictionDetail.prediction_date.asc()).all()
+
+    if not prediction_details:
+        flash(f"Tidak ada detail prediksi untuk model ini ({saved_model.id}).", 'warning')
+        return redirect(url_for('dashboard_user'))
+
+    prediction_results = [] 
+    full_prediction_data = [] 
+
+    for detail in prediction_details:
+        prediction_results.append({
+            'Date': detail.prediction_date.strftime('%Y-%m-%d'),
+            'True Price': f"{detail.true_price:.2f}",
+            'Predicted Price': f"{detail.predicted_price:.2f}"
+        })
+        full_prediction_data.append({
+            'Date': detail.prediction_date.strftime('%Y-%m-%d'),
+            'True Price': detail.true_price,
+            'Predicted Price': detail.predicted_price
+        })
+
+    rmse = saved_model.rmse
+    mae = saved_model.mae
+    mape = saved_model.mape
+
+    display_results = prediction_results[-20:]
+    total_predictions = len(prediction_details)
+
+    flash(f"Hasil prediksi untuk model {saved_model.ticker} (LR: {saved_model.learning_rate}, DO: {saved_model.dropout_rate}) dimuat.", 'success')
+
+    return render_template('free_user_predict.html',
+                           ticker=saved_model.ticker,
+                           rmse=rmse,
+                           mae=mae,
+                           mape=mape,
+                           prediction_results=display_results,
+                           full_prediction_data=full_prediction_data,
+                           total_predictions=total_predictions,
+                           selected_model_text=saved_model.training_timestamp.strftime('%Y-%m-%d %H:%M'))
 
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()
+        if not User.query.filter_by(username='admin').first():
+            hashed_password = generate_password_hash('adminpass')
+            admin_user = User(username='admin', password_hash=hashed_password, role='admin')
+            db.session.add(admin_user)
+            db.session.commit()
+            print("Pengguna admin default 'admin' dengan password 'adminpass' telah dibuat.")
+            print("HARAP UBAH PASSWORD DEFAULT INI DI PRODUKSI!")
     app.run(debug=True)

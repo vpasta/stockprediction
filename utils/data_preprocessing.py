@@ -30,19 +30,19 @@ def calculate_technical_indicators(df):
     rs = np.where(avg_loss == 0, np.inf, avg_gain / avg_loss) 
     df_copy['RSI'] = 100 - (100 / (1 + rs))
 
-    # --- Opsional: Tambahkan indikator lain seperti MACD atau ATR jika diinginkan ---
-    # MACD
-    # exp1 = df_copy['Adj Close'].ewm(span=12, adjust=False).mean()
-    # exp2 = df_copy['Adj Close'].ewm(span=26, adjust=False).mean()
-    # df_copy['MACD'] = exp1 - exp2
-    # df_copy['Signal_Line'] = df_copy['MACD'].ewm(span=9, adjust=False).mean()
+    # MACD (Moving Average Convergence Divergence)
+    exp1 = df_copy['Adj Close'].ewm(span=12, adjust=False).mean()
+    exp2 = df_copy['Adj Close'].ewm(span=26, adjust=False).mean()
+    df_copy['MACD'] = exp1 - exp2
+    df_copy['Signal_Line'] = df_copy['MACD'].ewm(span=9, adjust=False).mean()
+    df_copy['MACD_Hist'] = df_copy['MACD'] - df_copy['Signal_Line']
     
     # ATR (Average True Range)
-    # high_low = df_copy['High'] - df_copy['Low']
-    # high_close = np.abs(df_copy['High'] - df_copy['Close'].shift())
-    # low_close = np.abs(df_copy['Low'] - df_copy['Close'].shift())
-    # tr = np.maximum(high_low, np.maximum(high_close, low_close))
-    # df_copy['ATR'] = tr.rolling(window=14).mean() # Default 14 period
+    high_low = df_copy['High'] - df_copy['Low']
+    high_close = np.abs(df_copy['High'] - df_copy['Close'].shift())
+    low_close = np.abs(df_copy['Low'] - df_copy['Close'].shift())
+    tr = np.maximum(high_low, np.maximum(high_close, low_close))
+    df_copy['ATR'] = tr.rolling(window=14).mean() 
 
     df_copy.ffill(inplace=True)
     df_copy.bfill(inplace=True)

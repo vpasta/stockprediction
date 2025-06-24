@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="id">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Hasil Prediksi Saham TSLA (Pengguna)</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        margin: 20px;
+        background-color: #f4f4f4;
+        color: #333;
+      }
+      .container {
+        background-color: #fff;
+        padding: 25px;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        max-width: 900px;
+        margin: 30px auto;
+      }
+      h1,
+      h2 {
+        color: #0056b3;
+        text-align: center;
+        margin-bottom: 20px;
+      }
+      .message {
+        padding: 10px;
+        margin-top: 20px;
+        margin-bottom: 20px;
+        border-radius: 4px;
+        text-align: center;
+      }
+      .success {
+        background-color: #d4edda;
+        color: #155724;
+        border: 1px solid #c3e6cb;
+      }
+      .error {
+        background-color: #f8d7da;
+        color: #721c24;
+        border: 1px solid #f5c6cb;
+      }
+      .info {
+        background-color: #d1ecf1;
+        color: #0c5460;
+        border: 1px solid #bee5eb;
+      }
+      .controls {
+        text-align: center;
+        margin-bottom: 20px;
+        margin-top: 20px;
+      }
+      .controls a,
+      .controls button {
+        padding: 10px 15px;
+        background-color: #007bff;
+        color: white;
+        text-decoration: none;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 16px;
+        margin: 0 5px;
+        transition: background-color 0.3s ease;
+      }
+      .controls a:hover,
+      .controls button:hover {
+        background-color: #0056b3;
+      }
+      .metric-display {
+        font-size: 1.2em;
+        font-weight: bold;
+        text-align: center;
+        margin-bottom: 10px;
+      }
+      .prediction-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 20px;
+      }
+      .prediction-table th,
+      .prediction-table td {
+        border: 1px solid #ddd;
+        padding: 8px;
+        text-align: left;
+      }
+      .prediction-table th {
+        background-color: #f2f2f2;
+      }
+      canvas {
+        max-width: 100%;
+        height: auto;
+        margin-top: 20px;
+        background-color: #fff;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        padding: 15px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>Hasil Prediksi Harga Saham {{ ticker }}</h1>
+      <p style="text-align: center">Selamat datang, {{ session.username }}!.</p>
+
+      {% with messages = get_flashed_messages(with_categories=true) %} {% if
+      messages %} {% for category, message in messages %}
+      <div class="message {{ category }}">{{ message }}</div>
+      {% endfor %} {% endif %} {% endwith %}
+
+      <div class="controls">
+        <a href="{{ url_for('dashboard_user') }}">Kembali</a>
+      </div>
+
+      {% if rmse is not none %}
+      <div class="metric-display">
+        Root Mean Squared Error (RMSE):
+        <strong>{{ "%.4f"|format(rmse) }}</strong>
+      </div>
+      <div class="metric-display">
+        Mean Absolute Error (MAE):
+        <strong>{{ "%.4f"|format(mae) }}</strong>
+      </div>
+      <div class="metric-display">
+        Mean Absolute Percentage Error (MAPE):
+        <strong>{{ "%.2f"|format(mape) }}%</strong>
+      </div>
+
+      <h2>Grafik Perbandingan Harga Aktual vs. Prediksi</h2>
+      <canvas id="predictionChart"></canvas>
+
+      <h2>
+        Prediksi (Total {{ total_predictions }} Data, Ditampilkan 20 Data
+        Terakhir)
+      </h2>
+      <table class="prediction-table">
+        <thead>
+          <tr>
+            <th>Tanggal</th>
+            <th>Harga Aktual</th>
+            <th>Harga Prediksi</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for result in prediction_results %}
+          <tr>
+            <td>{{ result['Date'] }}</td>
+            <td>{{ result['True Price'] }}</td>
+            <td>{{ result['Predicted Price'] }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+
+      <script>
+        const predictionData = {{ full_prediction_data | tojson }};
+
+        const dates = predictionData.map((d) => d['Date']);
+        const truePrices = predictionData.map((d) => d['True Price']);
+        const predictedPrices = predictionData.map((d) => d['Predicted Price']);
+
+        const ctx = document.getElementById('predictionChart').getContext('2d');
+        const predictionChart = new Chart(ctx, {
+          type: 'line',
+          data: {
+            labels: dates,
+            datasets: [
+              {
+                label: 'Harga Aktual',
+                data: truePrices,
+                borderColor: 'rgb(75, 192, 192)',
+                tension: 0.1,
+                fill: false,
+                pointRadius: 0,
+              },
+              {
+                label: 'Harga Prediksi',
+                data: predictedPrices,
+                borderColor: 'rgb(255, 99, 132)',
+                tension: 0.1,
+                fill: false,
+                pointRadius: 0,
+              },
+            ],
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            scales: {
+              x: {
+                title: {
+                  display: true,
+                  text: 'Tanggal',
+                },
+              },
+              y: {
+                title: {
+                  display: true,
+                  text: 'Harga Saham ($)',
+                },
+              },
+            },
+            plugins: {
+              title: {
+                display: true,
+                text: 'Perbandingan Harga Aktual vs. Prediksi',
+              },
+              tooltip: {
+                callbacks: {
+                  label: function (context) {
+                    let label = context.dataset.label || '';
+                    if (label) {
+                      label += ': ';
+                    }
+                    if (context.parsed.y !== null) {
+                      label += new Intl.NumberFormat('en-US', {
+                        style: 'currency',
+                        currency: 'USD',
+                      }).format(context.parsed.y);
+                    }
+                    return label;
+                  },
+                },
+              },
+            },
+            interaction: {
+                mode: 'index',
+                intersect: false,
+            },
+            plugins: {
+                zoom: {
+                    pan: {
+                        enabled: true,
+                        mode: 'x',
+                    },
+                    zoom: {
+                        wheel: {
+                            enabled: true,
+                        },
+                        pinch: {
+                            enabled: true,
+                        },
+                        mode: 'x',
+                    }
+                }
+            }
+          },
+        });
+      </script>
+      {% else %}
+      <p style="text-align: center; color: #555">
+        Data prediksi untuk TSLA belum tersedia atau belum diproses oleh
+        administrator.
+      </p>
+      {% endif %}
+    </div>
+  </body>
+</html>
