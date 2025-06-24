@@ -1,187 +1,100 @@
-<!DOCTYPE html>
-<html lang="id">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Pelatihan Model GRU</title>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <style>
-      body {
-        font-family: Arial, sans-serif;
-        margin: 20px;
-        background-color: #f4f4f4;
-        color: #333;
-      }
-      .container {
-        background-color: #fff;
-        padding: 25px;
-        border-radius: 8px;
-        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-        max-width: 700px;
-        margin: 30px auto;
-      }
-      h1,
-      h2 {
-        color: #0056b3;
-        text-align: center;
-        margin-bottom: 20px;
-      }
-      .message {
-        padding: 10px;
-        margin-top: 20px;
-        margin-bottom: 20px;
-        border-radius: 4px;
-        text-align: center;
-      }
-      .success {
-        background-color: #d4edda;
-        color: #155724;
-        border: 1px solid #c3e6cb;
-      }
-      .error {
-        background-color: #f8d7da;
-        color: #721c24;
-        border: 1px solid #f5c6cb;
-      }
-      .info {
-        background-color: #d1ecf1;
-        color: #0c5460;
-        border: 1px solid #bee5eb;
-      }
-      .controls {
-        text-align: center;
-        margin-bottom: 20px;
-        margin-top: 20px;
-      }
-      .controls a,
-      .controls button {
-        padding: 10px 15px;
-        background-color: #007bff;
-        color: white;
-        text-decoration: none;
-        border: none;
-        border-radius: 4px;
-        cursor: pointer;
-        font-size: 16px;
-        margin: 0 5px;
-        transition: background-color 0.3s ease;
-      }
-      .controls a:hover,
-      .controls button:hover {
-        background-color: #0056b3;
-      }
-      .summary-list {
-        list-style-type: none;
-        padding: 0;
-        text-align: center;
-      }
-      .summary-list li {
-        margin-bottom: 5px;
-      }
-      canvas {
-        max-width: 100%;
-        height: auto; /* Memastikan responsif */
-        margin-top: 20px;
-        background-color: #fff;
-        border-radius: 8px;
-        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-        padding: 15px;
-      }
-    </style>
-  </head>
-  <body>
-    <div class="container">
-      <h1>Pelatihan Model GRU untuk {{ ticker }}</h1>
+{% extends "admin_base.html" %} {% block title %}Pelatihan Model GRU{% endblock
+%} {% block page_title %} Pelatihan Model GRU Untuk {{ current_ticker }} {%
+endblock %} {% block content %}
 
-      {% with messages = get_flashed_messages(with_categories=true) %} {% if
-      messages %} {% for category, message in messages %}
-      <div class="message {{ category }}">{{ message }}</div>
-      {% endfor %} {% endif %} {% endwith %}
+<body>
+  <div class="container">
+    <h1>Pelatihan Model GRU untuk {{ ticker }}</h1>
 
+    {% with messages = get_flashed_messages(with_categories=true) %} {% if
+    messages %} {% for category, message in messages %}
+    <div class="message {{ category }}">{{ message }}</div>
+    {% endfor %} {% endif %} {% endwith %}
+
+    <div class="controls">
+      <button onclick="location.href='/train';">Mulai Pelatihan Ulang</button>
+      <a href="/preprocess?ticker={{ ticker }}">Kembali ke Preprocessing</a>
+      <a href="/">Kembali ke Unduh Data</a>
       <div class="controls">
-        <button onclick="location.href='/train';">Mulai Pelatihan Ulang</button>
-        <a href="/preprocess?ticker={{ ticker }}">Kembali ke Preprocessing</a>
-        <a href="/">Kembali ke Unduh Data</a>
-        <div class="controls">
-          <button onclick="location.href='/predict';">Lakukan Prediksi</button>
-        </div>
+        <button onclick="location.href='/predict';">Lakukan Prediksi</button>
       </div>
-
-      <h2>Ringkasan Pelatihan</h2>
-      <ul class="summary-list">
-        <li><strong>Epochs:</strong> {{ epochs }}</li>
-        <li><strong>Learning Rate:</strong> {{ learning_rate }}</li>
-        <li><strong>Dropout Rate:</strong> {{ dropout_rate }}</li>
-        <li>
-          <strong>Loss Akhir (Train):</strong> {{ "%.6f"|format(final_loss) }}
-        </li>
-        <li>
-          <strong>Loss Akhir (Val Best):</strong> {{
-          "%.6f"|format(final_val_loss) }}
-        </li>
-        <li>
-          <strong>Durasi Pelatihan:</strong> {{ "%.2f"|format(training_duration)
-          }} detik
-        </li>
-      </ul>
-
-      <h2>Grafik Loss Pelatihan</h2>
-      <canvas id="lossChart"></canvas>
-
-      <script>
-        // Ambil data dari Flask
-        const trainLosses = {{ losses | tojson }};
-        const valLosses = {{ val_losses | tojson }};
-        const epochs = Array.from({length: trainLosses.length}, (_, i) => i + 1);
-
-        const ctx = document.getElementById('lossChart').getContext('2d');
-        const lossChart = new Chart(ctx, {
-            type: 'line', // Jenis grafik garis
-            data: {
-                labels: epochs, // Label sumbu X (Epochs)
-                datasets: [
-                    {
-                        label: 'Training Loss',
-                        data: trainLosses,
-                        borderColor: 'rgb(75, 192, 192)', // Warna garis untuk training loss
-                        tension: 0.1,
-                        fill: false // Jangan isi area di bawah garis
-                    },
-                    {
-                        label: 'Validation Loss',
-                        data: valLosses,
-                        borderColor: 'rgb(255, 99, 132)', // Warna garis untuk validation loss
-                        tension: 0.1,
-                        fill: false
-                    }
-                ]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: true,
-                scales: {
-                    x: {
-                        title: {
-                            display: true,
-                            text: 'Epoch'
-                        }
-                    },
-                    y: {
-                        title: {
-                            display: true,
-                            text: 'Loss (MSE)'
-                        }
-                    }
-                },
-                plugins: {
-                    title: {
-                        display: true,
-                        text: 'Training and Validation Loss over Epochs'
-                    }
-                }
-            }
-        });
-      </script>
     </div>
-  </body>
-</html>
+
+    <h2>Ringkasan Pelatihan</h2>
+    <ul class="summary-list">
+      <li><strong>Epochs:</strong> {{ epochs }}</li>
+      <li><strong>Learning Rate:</strong> {{ learning_rate }}</li>
+      <li><strong>Dropout Rate:</strong> {{ dropout_rate }}</li>
+      <li>
+        <strong>Loss Akhir (Train):</strong> {{ "%.6f"|format(final_loss) }}
+      </li>
+      <li>
+        <strong>Loss Akhir (Val Best):</strong> {{ "%.6f"|format(final_val_loss)
+        }}
+      </li>
+      <li>
+        <strong>Durasi Pelatihan:</strong> {{ "%.2f"|format(training_duration)
+        }} detik
+      </li>
+    </ul>
+
+    <h2>Grafik Loss Pelatihan</h2>
+    <canvas id="lossChart"></canvas>
+
+    {% block scripts_extra %}
+    <script>
+      const trainLosses = {{ losses | tojson }};
+      const valLosses = {{ val_losses | tojson }};
+      const epochs = Array.from({length: trainLosses.length}, (_, i) => i + 1);
+
+      const ctx = document.getElementById('lossChart').getContext('2d');
+      const lossChart = new Chart(ctx, {
+          type: 'line',
+          data: {
+              labels: epochs,
+              datasets: [
+                  {
+                      label: 'Training Loss',
+                      data: trainLosses,
+                      borderColor: 'rgb(75, 192, 192)',
+                      tension: 0.1,
+                      fill: false
+                  },
+                  {
+                      label: 'Validation Loss',
+                      data: valLosses,
+                      borderColor: 'rgb(255, 99, 132)',
+                      tension: 0.1,
+                      fill: false
+                  }
+              ]
+          },
+          options: {
+              responsive: true,
+              maintainAspectRatio: true,
+              scales: {
+                  x: {
+                      title: {
+                          display: true,
+                          text: 'Epoch'
+                      }
+                  },
+                  y: {
+                      title: {
+                          display: true,
+                          text: 'Loss (MSE)'
+                      }
+                  }
+              },
+              plugins: {
+                  title: {
+                      display: true,
+                      text: 'Training and Validation Loss over Epochs'
+                  }
+              }
+          }
+      });
+    </script>
+  </div>
+  {% endblock %}
+</body>

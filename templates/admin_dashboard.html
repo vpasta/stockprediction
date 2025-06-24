@@ -1,0 +1,112 @@
+{% extends "admin_base.html" %} {% block title %}Dashboard Admin{% endblock %}
+{% block page_title %}Dashboard{% endblock %} {% block content %}
+<div class="row">
+  <div class="col-lg-3 col-6">
+    <div class="small-box bg-info">
+      <div class="inner">
+        <h3>{{ total_stock_records }}</h3>
+        <p>Total Record Data Saham</p>
+      </div>
+      <div class="icon">
+        <i class="fas fa-database"></i>
+      </div>
+      <a href="{{ url_for('index') }}" class="small-box-footer">
+        Lihat Data <i class="fas fa-arrow-circle-right"></i>
+      </a>
+    </div>
+  </div>
+
+  <div class="col-lg-3 col-6">
+    <div class="small-box bg-success">
+      <div class="inner">
+        <h3>{{ unique_tickers }}</h3>
+        <p>Jumlah Ticker Saham</p>
+      </div>
+      <div class="icon">
+        <i class="fas fa-chart-line"></i>
+      </div>
+      <a href="{{ url_for('index') }}" class="small-box-footer">
+        Unduh Data <i class="fas fa-arrow-circle-right"></i>
+      </a>
+    </div>
+  </div>
+
+  <div class="col-lg-3 col-6">
+    <div class="small-box bg-warning">
+      <div class="inner">
+        <h3>{{ total_saved_models }}</h3>
+        <p>Total Model Tersimpan</p>
+      </div>
+      <div class="icon">
+        <i class="fas fa-brain"></i>
+      </div>
+      <a href="{{ url_for('admin_models_manage') }}" class="small-box-footer">
+        Lihat Model <i class="fas fa-arrow-circle-right"></i>
+      </a>
+    </div>
+  </div>
+
+  <div class="col-lg-3 col-6">
+    <div class="small-box bg-danger">
+      <div class="inner">
+        {% if best_model_by_rmse %}
+        <h3>
+          {{ "%.4f"|format(best_model_by_rmse.rmse) }}
+          <sup style="font-size: 20px">RMSE</sup>
+        </h3>
+        <p>Model Terbaik (LR: {{ best_model_by_rmse.learning_rate }})</p>
+        {% else %}
+        <h3>N/A</h3>
+        <p>Belum ada model terbaik</p>
+        {% endif %}
+      </div>
+      <div class="icon">
+        <i class="fas fa-award"></i>
+      </div>
+      <a href="{{ url_for('admin_models_manage') }}" class="small-box-footer">
+        Lihat Detail <i class="fas fa-arrow-circle-right"></i>
+      </a>
+    </div>
+  </div>
+</div>
+
+<div class="card mt-4">
+  <div class="card-header">
+    <h3 class="card-title">5 Model Terakhir Dilatih</h3>
+  </div>
+  <div class="card-body">
+    {% if latest_models %}
+    <table class="table table-bordered table-striped">
+      <thead>
+        <tr>
+          <th>Ticker</th>
+          <th>H.Dim</th>
+          <th>LR</th>
+          <th>DO</th>
+          <th>RMSE</th>
+          <th>MAPE (%)</th>
+          <th>Tanggal Pelatihan</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for model in latest_models %}
+        <tr>
+          <td>{{ model.ticker }}</td>
+          <td>{{ model.hidden_dim }}</td>
+          <td>{{ "%.4f"|format(model.learning_rate) }}</td>
+          <td>{{ "%.2f"|format(model.dropout_rate) }}</td>
+          <td>{{ "%.4f"|format(model.rmse) }}</td>
+          <td>{{ "%.2f"|format(model.mape) }}</td>
+          <td>{{ model.training_timestamp.strftime('%Y-%m-%d %H:%M') }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p class="text-center text-muted">
+      Belum ada model yang dilatih atau disimpan.
+    </p>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

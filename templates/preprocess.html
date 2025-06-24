@@ -1,152 +1,87 @@
-<!DOCTYPE html>
-<html lang="id">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Preprocessing Data Saham</title>
-    <style>
-      body {
-        font-family: Arial, sans-serif;
-        margin: 20px;
-        background-color: #f4f4f4;
-        color: #333;
-      }
-      .container {
-        background-color: #fff;
-        padding: 25px;
-        border-radius: 8px;
-        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-        max-width: 900px;
-        margin: 30px auto;
-      }
-      h1,
-      h2 {
-        color: #0056b3;
-        text-align: center;
-        margin-bottom: 20px;
-      }
-      .message {
-        padding: 10px;
-        margin-top: 20px;
-        margin-bottom: 20px;
-        border-radius: 4px;
-        text-align: center;
-      }
-      .success {
-        background-color: #d4edda;
-        color: #155724;
-        border: 1px solid #c3e6cb;
-      }
-      .error {
-        background-color: #f8d7da;
-        color: #721c24;
-        border: 1px solid #f5c6cb;
-      }
-      .warning {
-        background-color: #fff3cd;
-        color: #856404;
-        border: 1px solid #ffeeba;
-      }
-      .info {
-        background-color: #d1ecf1;
-        color: #0c5460;
-        border: 1px solid #bee5eb;
-      }
-      .controls {
-        text-align: center;
-        margin-bottom: 20px;
-      }
-      .controls a,
-      .controls button {
-        padding: 10px 15px;
-        background-color: #007bff;
-        color: white;
-        text-decoration: none;
-        border: none;
-        border-radius: 4px;
-        cursor: pointer;
-        font-size: 16px;
-        margin: 0 5px;
-        transition: background-color 0.3s ease;
-        display: inline-block; /* Agar bisa berdampingan */
-      }
-      .controls a:hover,
-      .controls button:hover {
-        background-color: #0056b3;
-      }
-      .data-display {
-        margin-top: 20px;
-        overflow-x: auto;
-      }
-      .data-table {
-        width: 100%;
-        border-collapse: collapse;
-        margin-top: 20px;
-      }
-      .data-table th,
-      .data-table td {
-        border: 1px solid #ddd;
-        padding: 8px;
-        text-align: left;
-      }
-      .data-table th {
-        background-color: #f2f2f2;
-      }
-      .info-box {
-        background-color: #e9ecef;
-        padding: 15px;
-        border-radius: 5px;
-        margin-top: 20px;
-      }
-      .info-box p {
-        margin: 5px 0;
-      }
-    </style>
-  </head>
-  <body>
-    <div class="container">
-      <h1>Preprocessing Data Saham {{ current_ticker }}</h1>
+{% extends "admin_base.html" %} {% block title %} Preprocessing Data Saham{%
+endblock %} {% block page_title %} Preprocessing Data Saham {{ current_ticker }}
+{% endblock %} {% block content %}
 
-      {% with messages = get_flashed_messages(with_categories=true) %} {% if
-      messages %} {% for category, message in messages %}
-      <div class="message {{ category }}">{{ message }}</div>
-      {% endfor %} {% endif %} {% endwith %}
+<div class="card">
+  <div class="card-header">
+    <h3 class="card-title">Kontrol Halaman</h3>
+  </div>
+  <div class="card-body text-center">
+    {% if show_preprocess_results %}
+    <a href="{{ url_for('train_model') }}" class="btn btn-info mr-2"
+      >Latih Model</a
+    >
+    {% if model_loaded_from_cache %}
+    <a href="{{ url_for('predict_price') }}" class="btn btn-success mr-2"
+      >Gunakan Model yang Dimuat (Prediksi)</a
+    >
+    {% endif %}
+    <a href="{{ url_for('index') }}" class="btn btn-secondary"
+      >Kembali ke Unduh Data</a
+    >
+    {% else %}
+    <p>Silakan proses data terlebih dahulu dari halaman unduh.</p>
+    <a href="{{ url_for('index') }}" class="btn btn-primary"
+      >Kembali ke Unduh Data</a
+    >
+    {% endif %}
+  </div>
+</div>
 
-      <div class="controls">
-        {% if show_preprocess_results %}
-        <a href="{{ url_for('train_model') }}">Latih Ulang Model</a>
-        {% if model_loaded_from_cache %}
-        <a
-          href="{{ url_for('predict_price') }}"
-          style="background-color: #28a745"
-          >Gunakan Model yang Dimuat (Prediksi)</a
-        >
-        {% endif %}
-        <a href="/">Kembali ke Unduh Data</a>
-        {% else %}
-        <p>Silakan proses data terlebih dahulu dari halaman unduh.</p>
-        <a href="/">Kembali ke Unduh Data</a>
-        {% endif %}
-      </div>
+{% if show_preprocess_results %}
+<div class="card mt-4">
+  <div class="card-header">
+    <h3 class="card-title">Ringkasan Pra-pemrosesan</h3>
+  </div>
+  <div class="card-body">
+    <ul class="list-group list-group-unbordered mb-3">
+      <li class="list-group-item">
+        <b>Total Record Data:</b>
+        <span class="float-right">{{ total_records }}</span>
+      </li>
+      <li class="list-group-item">
+        <b>Lookback Window (Sequence Length):</b>
+        <span class="float-right">{{ lookback_window }} hari</span>
+      </li>
+      <li class="list-group-item">
+        <b>Input Dim (Jumlah Fitur):</b>
+        <span class="float-right">{{ input_dim }}</span>
+      </li>
+      <li class="list-group-item">
+        <b>Hidden Dim GRU:</b> <span class="float-right">{{ hidden_dim }}</span>
+      </li>
+      <li class="list-group-item">
+        <b>Dropout Rate GRU:</b>
+        <span class="float-right">{{ dropout_rate }}</span>
+      </li>
+      <li class="list-group-item">
+        <b>Shape X_train:</b>
+        <span class="float-right">{{ X_shape_train }}</span>
+      </li>
+      <li class="list-group-item">
+        <b>Shape y_train:</b>
+        <span class="float-right">{{ y_shape_train }}</span>
+      </li>
+      <li class="list-group-item">
+        <b>Shape X_val:</b> <span class="float-right">{{ X_shape_val }}</span>
+      </li>
+      <li class="list-group-item">
+        <b>Shape y_val:</b> <span class="float-right">{{ y_val_data }}</span>
+      </li>
+    </ul>
+  </div>
+</div>
 
-      {% if show_preprocess_results %}
-      <div class="info-box">
-        <h2>Ringkasan Preprocessing</h2>
-        <p>Total Record Data: {{ total_records }}</p>
-        <p>Lookback Window (Sequence Length): {{ lookback_window }}</p>
-        <p>Input Dim (Jumlah Fitur): {{ input_dim }}</p>
-        <p>Hidden Dim GRU: {{ hidden_dim }}</p>
-        <p>Learning Rate: {{ learning_rate }}</p>
-        <p>Dropout Rate GRU: {{ dropout_rate }}</p>
-        <p>Shape X_train: {{ X_shape_train }}</p>
-        <p>Shape y_train: {{ y_shape_train }}</p>
-        <p>Shape X_val: {{ X_shape_val }}</p>
-        <p>Shape y_val: {{ y_val_data }}</p>
-      </div>
-
-      <h2>Data yang Diproses (10 baris pertama & 10 baris terakhir)</h2>
-      <div class="data-display">{{ data_html|safe }}</div>
-      {% endif %}
-    </div>
-  </body>
-</html>
+<div class="card mt-4">
+  <div class="card-header">
+    <h3 class="card-title">Cuplikan Data Setelah Preprocessing</h3>
+  </div>
+  <div class="card-body">
+    <div class="table-responsive">{{ data_html | safe }}</div>
+    <p class="text-center text-muted mt-3">
+      Data di atas telah dimuat dari database dan dinormalisasi (khusus 'Adj
+      Close').
+    </p>
+  </div>
+</div>
+{% endif %} {% endblock %}

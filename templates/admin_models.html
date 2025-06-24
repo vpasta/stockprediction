@@ -1,0 +1,59 @@
+{% extends "admin_base.html" %} {% block title %}Manajemen Model Tersimpan{%
+endblock %} {% block page_title %}Manajemen Model Tersimpan{% endblock %} {%
+block content %}
+<div class="card">
+  <div class="card-header">
+    <h3 class="card-title">Daftar Model GRU Tersimpan</h3>
+  </div>
+  <div class="card-body">
+    <table class="table table-bordered table-striped">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Ticker</th>
+          <th>H.Dim</th>
+          <th>Window</th>
+          <th>LR</th>
+          <th>DO</th>
+          <th>RMSE</th>
+          <th>MAE</th>
+          <th>MAPE (%)</th>
+          <th>Tanggal Pelatihan</th>
+          <th>File Model</th>
+          {#
+          <th>Aksi</th>
+          #}
+        </tr>
+      </thead>
+      <tbody>
+        {% for model in models %}
+        <tr>
+          <td>{{ model.id }}</td>
+          <td>{{ model.ticker }}</td>
+          <td>{{ model.hidden_dim }}</td>
+          <td>{{ model.lookback_window }}</td>
+          <td>{{ "%.4f"|format(model.learning_rate) }}</td>
+          <td>{{ "%.2f"|format(model.dropout_rate) }}</td>
+          <td>{{ "%.4f"|format(model.rmse) }}</td>
+          <td>{{ "%.4f"|format(model.mae) }}</td>
+          <td>{{ "%.2f"|format(model.mape) }}</td>
+          <td>{{ model.training_timestamp.strftime('%Y-%m-%d %H:%M') }}</td>
+          <td>{{ model.model_filepath.split('/')[-1].split('\\')[-1] }}</td>
+          {#
+          <td>
+            <a href="#" class="btn btn-sm btn-danger">Hapus</a>
+          </td>
+          #}
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="11" class="text-center">
+            Belum ada model yang disimpan di database.
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

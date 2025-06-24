@@ -98,7 +98,7 @@ def login():
             flash(f'Selamat datang, {user.username}!', 'success')
 
             if user.role == 'admin':
-                return redirect(url_for('index')) 
+                return redirect(url_for('admin_dashboard')) 
             else:
                 return redirect(url_for('dashboard_user')) 
         else:
@@ -681,6 +681,33 @@ def predict_price():
                            mape=mape, 
                            prediction_results=display_results,
                            total_predictions=test_size)
+    
+@app.route('/admin/models')
+@admin_required
+def admin_models_manage():
+    all_saved_models = SavedModel.query.order_by(SavedModel.training_timestamp.desc()).all()
+    return render_template('admin_models.html', models=all_saved_models)
+
+@app.route('/admin/dashboard') 
+@admin_required
+def admin_dashboard():
+    total_stock_records = StockData.query.count()
+
+    unique_tickers = db.session.query(StockData.ticker).distinct().count()
+
+    total_saved_models = SavedModel.query.count()
+
+    best_model_by_rmse = SavedModel.query.order_by(SavedModel.rmse.asc()).first()
+    
+    latest_models = SavedModel.query.order_by(SavedModel.training_timestamp.desc()).limit(5).all()
+
+
+    return render_template('admin_dashboard.html',
+                           total_stock_records=total_stock_records,
+                           unique_tickers=unique_tickers,
+                           total_saved_models=total_saved_models,
+                           best_model_by_rmse=best_model_by_rmse,
+                           latest_models=latest_models)
     
 @app.route('/dashboard_user')
 @login_required 

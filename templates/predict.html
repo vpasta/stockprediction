@@ -1,128 +1,49 @@
-<!DOCTYPE html>
-<html lang="id">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Hasil Prediksi Harga Saham</title>
-    <style>
-      body {
-        font-family: Arial, sans-serif;
-        margin: 20px;
-        background-color: #f4f4f4;
-        color: #333;
-      }
-      .container {
-        background-color: #fff;
-        padding: 25px;
-        border-radius: 8px;
-        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-        max-width: 800px;
-        margin: 30px auto;
-      }
-      h1,
-      h2 {
-        color: #0056b3;
-        text-align: center;
-        margin-bottom: 20px;
-      }
-      .message {
-        padding: 10px;
-        margin-top: 20px;
-        margin-bottom: 20px;
-        border-radius: 4px;
-        text-align: center;
-      }
-      .success {
-        background-color: #d4edda;
-        color: #155724;
-        border: 1px solid #c3e6cb;
-      }
-      .error {
-        background-color: #f8d7da;
-        color: #721c24;
-        border: 1px solid #f5c6cb;
-      }
-      .info {
-        background-color: #d1ecf1;
-        color: #0c5460;
-        border: 1px solid #bee5eb;
-      }
-      .controls {
-        text-align: center;
-        margin-bottom: 20px;
-        margin-top: 20px;
-      }
-      .controls a,
-      .controls button {
-        padding: 10px 15px;
-        background-color: #007bff;
-        color: white;
-        text-decoration: none;
-        border: none;
-        border-radius: 4px;
-        cursor: pointer;
-        font-size: 16px;
-        margin: 0 5px;
-        transition: background-color 0.3s ease;
-      }
-      .controls a:hover,
-      .controls button:hover {
-        background-color: #0056b3;
-      }
-      .prediction-table {
-        width: 100%;
-        border-collapse: collapse;
-        margin-top: 20px;
-      }
-      .prediction-table th,
-      .prediction-table td {
-        border: 1px solid #ddd;
-        padding: 8px;
-        text-align: left;
-      }
-      .prediction-table th {
-        background-color: #f2f2f2;
-      }
-      .rmse-display {
-        font-size: 1.2em;
-        font-weight: bold;
-        text-align: center;
-        margin-bottom: 20px;
-      }
-    </style>
-  </head>
-  <body>
-    <div class="container">
-      <h1>Hasil Prediksi Harga Saham {{ ticker }}</h1>
+{% extends "admin_base.html" %} {% block title %}Hasil Prediksi Harga Saham{%
+endblock %} {% block page_title %} Hasil Prediksi Harga Saham {{ ticker }} {%
+endblock %} {% block content %}
 
-      {% with messages = get_flashed_messages(with_categories=true) %} {% if
-      messages %} {% for category, message in messages %}
-      <div class="message {{ category }}">{{ message }}</div>
-      {% endfor %} {% endif %} {% endwith %}
+<div class="card">
+  <div class="card-header">
+    <h3 class="card-title">Detail Prediksi</h3>
+  </div>
+  <div class="card-body">
+    {% with messages = get_flashed_messages(with_categories=true) %} {% if
+    messages %} {% for category, message in messages %}
+    <div class="message {{ category }}">{{ message }}</div>
+    {% endfor %} {% endif %} {% endwith %}
 
-      <div class="controls">
-        <a href="/train">Latih Ulang Model</a>
-        <a href="/preprocess?ticker={{ ticker }}">Kembali ke Preprocessing</a>
-        <a href="/">Kembali ke Unduh Data</a>
-      </div>
+    <div class="controls text-center">
+      <a href="{{ url_for('train_model') }}" class="btn btn-info"
+        >Latih Ulang Model</a
+      >
+      <a
+        href="{{ url_for('preprocess', ticker=ticker) }}"
+        class="btn btn-secondary"
+        >Kembali ke Preprocessing</a
+      >
+      <a href="{{ url_for('index') }}" class="btn btn-secondary"
+        >Kembali ke Unduh Data</a
+      >
+    </div>
 
-      <div class="rmse-display">
-        Root Mean Squared Error (RMSE):
-        <strong>{{ "%.4f"|format(rmse) }}</strong>
-      </div>
-      <div class="metric-display">
-        Mean Absolute Error (MAE):
-        <strong>{{ "%.4f"|format(mae) }}</strong>
-      </div>
-      <div class="metric-display">
-        Mean Absolute Percentage Error (MAPE):
-        <strong>{{ "%.2f"|format(mape) }}%</strong>
-      </div>
+    <div class="metric-display">
+      Root Mean Squared Error (RMSE):
+      <strong>{{ "%.4f"|format(rmse) }}</strong>
+    </div>
+    <div class="metric-display">
+      Mean Absolute Error (MAE):
+      <strong>{{ "%.4f"|format(mae) }}</strong>
+    </div>
+    <div class="metric-display">
+      Mean Absolute Percentage Error (MAPE):
+      <strong>{{ "%.2f"|format(mape) }}%</strong>
+    </div>
 
-      <h2>
-        Prediksi ({{ total_predictions }} Data, Ditampilkan 20 Data Terakhir)
-      </h2>
-      <table class="prediction-table">
+    <h2>
+      Prediksi ({{ total_predictions }} Data, Ditampilkan 20 Data Terakhir)
+    </h2>
+    <div class="table-responsive">
+      <table class="table table-bordered table-striped prediction-table">
         <thead>
           <tr>
             <th>Tanggal</th>
@@ -141,5 +62,6 @@
         </tbody>
       </table>
     </div>
-  </body>
-</html>
+  </div>
+</div>
+{% endblock %}
