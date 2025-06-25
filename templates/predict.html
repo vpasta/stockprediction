@@ -1,7 +1,6 @@
 {% extends "admin_base.html" %} {% block title %}Hasil Prediksi Harga Saham{%
-endblock %} {% block page_title %} Hasil Prediksi Harga Saham {{ ticker }} {%
+endblock %} {% block page_title %}Hasil Prediksi Harga Saham {{ ticker }} {%
 endblock %} {% block content %}
-
 <div class="card">
   <div class="card-header">
     <h3 class="card-title">Detail Prediksi</h3>
@@ -12,19 +11,24 @@ endblock %} {% block content %}
     <div class="message {{ category }}">{{ message }}</div>
     {% endfor %} {% endif %} {% endwith %}
 
+    <br />
     <div class="controls text-center">
-      <a href="{{ url_for('train_model') }}" class="btn btn-info"
+      <a href="{{ url_for('train_model') }}" class="btn btn-info mr-2"
         >Latih Ulang Model</a
       >
       <a
         href="{{ url_for('preprocess', ticker=ticker) }}"
-        class="btn btn-secondary"
+        class="btn btn-secondary mr-2"
         >Kembali ke Preprocessing</a
       >
-      <a href="{{ url_for('index') }}" class="btn btn-secondary"
+      <a href="{{ url_for('index') }}" class="btn btn-secondary mr-2"
         >Kembali ke Unduh Data</a
       >
+      <a href="{{ url_for('predict_future') }}" class="btn btn-primary"
+        >Prediksi 7 Hari ke Depan</a
+      >
     </div>
+    <br />
 
     <div class="metric-display">
       Root Mean Squared Error (RMSE):
@@ -39,7 +43,12 @@ endblock %} {% block content %}
       <strong>{{ "%.2f"|format(mape) }}%</strong>
     </div>
 
-    <h2>
+    <h2 class="mt-4 mb-3 text-center">
+      Grafik Perbandingan Harga Aktual vs. Prediksi
+    </h2>
+    <canvas id="predictionChart" style="max-width: 100%; height: auto"></canvas>
+
+    <h2 class="mt-4">
       Prediksi ({{ total_predictions }} Data, Ditampilkan 20 Data Terakhir)
     </h2>
     <div class="table-responsive">
@@ -64,4 +73,115 @@ endblock %} {% block content %}
     </div>
   </div>
 </div>
+
+{% endblock %} {% block scripts_extra %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom"></script>
+<script>
+  const predictionData = {{ full_prediction_data | tojson }} || [];
+
+  if (predictionData.length > 0) {
+    const dates = predictionData.map((d) => d['Date']);
+    const truePrices = predictionData.map((d) => d['True Price']);
+    const predictedPrices = predictionData.map((d) => d['Predicted Price']);
+
+    const ctx = document.getElementById('predictionChart').getContext('2d');
+    const predictionChart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: dates,
+        datasets: [
+          {
+            label: 'Harga Aktual',
+            data: truePrices,
+            borderColor: 'rgb(75, 192, 192)',
+            tension: 0.1,
+            fill: false,
+            pointRadius: 0,
+          },
+          {
+            label: 'Harga Prediksi',
+            data: predictedPrices,
+            borderColor: 'rgb(255, 99, 132)',
+            tension: 0.1,
+            fill: false,
+            pointRadius: 0,
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: true,
+        scales: {
+          x: {
+            title: {
+              display: true,
+              text: 'Tanggal',
+            },
+          },
+          y: {
+            title: {
+              display: true,
+              text: 'Harga Saham ($)',
+            },
+          },
+        },
+        plugins: {
+          title: {
+            display: true,
+            text: 'Perbandingan Harga Aktual vs. Prediksi',
+          },
+          tooltip: {
+            callbacks: {
+              label: function (context) {
+                let label = context.dataset.label || '';
+                if (label) {
+                  label += ': ';
+                }
+                if (context.parsed.y !== null) {
+                  label += new Intl.NumberFormat('en-US', {
+                    style: 'currency',
+                    currency: 'USD',
+                  }).format(context.parsed.y);
+                }
+                return label;
+              },
+            },
+          },
+          zoom: {
+            pan: {
+              enabled: true,
+              mode: 'x',
+            },
+            zoom: {
+              wheel: {
+                enabled: true,
+              },
+              pinch: {
+                enabled: true,
+              },
+              mode: 'x',
+            },
+          },
+        },
+        interaction: {
+          mode: 'index',
+          intersect: false,
+        },
+      },
+    });
+  } else {
+    document.getElementById('predictionChart').style.display = 'none';
+    const noDataMessage = document.createElement('p');
+    noDataMessage.textContent = 'Tidak ada data untuk menampilkan grafik.';
+    noDataMessage.style.textAlign = 'center';
+    noDataMessage.style.color = '#555';
+    document
+      .getElementById('predictionChart')
+      .parentNode.insertBefore(
+        noDataMessage,
+        document.getElementById('predictionChart').nextSibling
+      );
+  }
+</script>
 {% endblock %}

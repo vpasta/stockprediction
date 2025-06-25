@@ -10,14 +10,12 @@ block content %}
     <div class="card-body">
       <div class="form-group">
         <label for="ticker">Ticker Saham:</label>
-        <input
-          type="text"
-          class="form-control"
-          id="ticker"
-          name="ticker"
-          value="{{ default_ticker }}"
-          required
-        />
+        <select class="form-control" id="ticker" name="ticker" required>
+          <option value="AAPL" {% if default_ticker == "AAPL" %}selected{% endif %}>AAPL</option>
+          <option value="GOOGL" {% if default_ticker == "GOOGL" %}selected{% endif %}>GOOGL</option>
+          <option value="MSFT" {% if default_ticker == "MSFT" %}selected{% endif %}>MSFT</option>
+          <option value="AMZN" {% if default_ticker == "AMZN" %}selected{% endif %}>AMZN</option>
+        </select>
       </div>
       <div class="form-group">
         <label for="start_date">Tanggal Mulai:</label>
@@ -38,6 +36,61 @@ block content %}
           id="end_date"
           name="end_date"
           value="{{ default_end_date }}"
+          required
+        />
+      </div>
+
+      <hr />
+      <h4 class="mt-4 mb-3">Parameter Pelatihan Model</h4>
+      <div class="form-group">
+        <label for="epochs">Jumlah Epochs:</label>
+        <input
+          type="number"
+          class="form-control"
+          id="epochs"
+          name="epochs"
+          value="{{ default_epochs }}"
+          min="1"
+          required
+        />
+      </div>
+      <div class="form-group">
+        <label for="learning_rate">Learning Rate:</label>
+        <input
+          type="number"
+          class="form-control"
+          id="learning_rate"
+          name="learning_rate"
+          value="{{ default_learning_rate }}"
+          step="0.0001"
+          min="0.00001"
+          max="1.0"
+          required
+        />
+      </div>
+      <div class="form-group">
+        <label for="dropout_rate">Dropout Rate:</label>
+        <input
+          type="number"
+          class="form-control"
+          id="dropout_rate"
+          name="dropout_rate"
+          value="{{ default_dropout_rate }}"
+          step="0.05"
+          min="0.0"
+          max="0.9"
+          required
+        />
+      </div>
+      <div class="form-group">
+        <label for="patience">Early Stopping Patience:</label>
+        <input
+          type="number"
+          class="form-control"
+          id="patience"
+          name="patience"
+          value="{{ default_patience }}"
+          min="1"
           required
         />
       </div>
@@ -66,6 +119,7 @@ block content %}
       class="btn btn-secondary"
       >Unduh File CSV</a
     >
+    {% endif %}
   </div>
 </div>
-{% endif %} {% endblock %}
+{% endblock %}

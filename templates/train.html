@@ -1,100 +1,133 @@
 {% extends "admin_base.html" %} {% block title %}Pelatihan Model GRU{% endblock
-%} {% block page_title %} Pelatihan Model GRU Untuk {{ current_ticker }} {%
-endblock %} {% block content %}
+%} {% block page_title %} Pelatihan Model GRU Untuk {{ ticker }} {%- endblock %}
+{% block content %}
 
-<body>
-  <div class="container">
-    <h1>Pelatihan Model GRU untuk {{ ticker }}</h1>
-
+<div class="card">
+  <div class="card-header">
+    <h3 class="card-title">Kontrol Pelatihan</h3>
+  </div>
+  <div class="card-body">
     {% with messages = get_flashed_messages(with_categories=true) %} {% if
     messages %} {% for category, message in messages %}
     <div class="message {{ category }}">{{ message }}</div>
     {% endfor %} {% endif %} {% endwith %}
 
-    <div class="controls">
-      <button onclick="location.href='/train';">Mulai Pelatihan Ulang</button>
-      <a href="/preprocess?ticker={{ ticker }}">Kembali ke Preprocessing</a>
-      <a href="/">Kembali ke Unduh Data</a>
-      <div class="controls">
-        <button onclick="location.href='/predict';">Lakukan Prediksi</button>
-      </div>
+    <div class="controls text-center">
+      <button onclick="location.href='/train';" class="btn btn-info mr-2">
+        Mulai Pelatihan Ulang
+      </button>
+      <a
+        href="{{ url_for('preprocess', ticker=ticker) }}"
+        class="btn btn-secondary mr-2"
+        >Kembali ke Preprocessing</a
+      >
+      <a href="{{ url_for('index') }}" class="btn btn-secondary mr-2"
+        >Kembali ke Unduh Data</a
+      >
+      <button onclick="location.href='/predict';" class="btn btn-primary">
+        Lakukan Prediksi
+      </button>
     </div>
+  </div>
+</div>
 
-    <h2>Ringkasan Pelatihan</h2>
-    <ul class="summary-list">
-      <li><strong>Epochs:</strong> {{ epochs }}</li>
-      <li><strong>Learning Rate:</strong> {{ learning_rate }}</li>
-      <li><strong>Dropout Rate:</strong> {{ dropout_rate }}</li>
-      <li>
-        <strong>Loss Akhir (Train):</strong> {{ "%.6f"|format(final_loss) }}
+<div class="card mt-4">
+  <div class="card-header">
+    <h3 class="card-title">Ringkasan Pelatihan</h3>
+  </div>
+  <div class="card-body">
+    <ul class="summary-list list-group list-group-unbordered mb-3">
+      <li class="list-group-item">
+        <strong>Epochs:</strong> <span class="float-right">{{ epochs }}</span>
       </li>
-      <li>
-        <strong>Loss Akhir (Val Best):</strong> {{ "%.6f"|format(final_val_loss)
-        }}
+      <li class="list-group-item">
+        <strong>Learning Rate:</strong>
+        <span class="float-right">{{ learning_rate }}</span>
       </li>
-      <li>
-        <strong>Durasi Pelatihan:</strong> {{ "%.2f"|format(training_duration)
-        }} detik
+      <li class="list-group-item">
+        <strong>Dropout Rate:</strong>
+        <span class="float-right">{{ dropout_rate }}</span>
+      </li>
+      <li class="list-group-item">
+        <strong>Loss Akhir (Train):</strong>
+        <span class="float-right">{{ "%.6f"|format(final_loss) }}</span>
+      </li>
+      <li class="list-group-item">
+        <strong>Loss Akhir (Val Best):</strong>
+        <span class="float-right">{{ "%.6f"|format(final_val_loss) }}</span>
+      </li>
+      <li class="list-group-item">
+        <strong>Durasi Pelatihan:</strong>
+        <span class="float-right"
+          >{{ "%.2f"|format(training_duration) }} detik</span
+        >
       </li>
     </ul>
+  </div>
+</div>
 
-    <h2>Grafik Loss Pelatihan</h2>
+<div class="card mt-4">
+  <div class="card-header">
+    <h3 class="card-title">Grafik Loss Pelatihan</h3>
+  </div>
+  <div class="card-body">
     <canvas id="lossChart"></canvas>
+  </div>
+</div>
 
-    {% block scripts_extra %}
-    <script>
-      const trainLosses = {{ losses | tojson }};
-      const valLosses = {{ val_losses | tojson }};
-      const epochs = Array.from({length: trainLosses.length}, (_, i) => i + 1);
+{% endblock %} {% block scripts_extra %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+  const trainLosses = {{ losses | tojson }};
+  const valLosses = {{ val_losses | tojson }};
+  const epochs = Array.from({length: trainLosses.length}, (_, i) => i + 1);
 
-      const ctx = document.getElementById('lossChart').getContext('2d');
-      const lossChart = new Chart(ctx, {
-          type: 'line',
-          data: {
-              labels: epochs,
-              datasets: [
-                  {
-                      label: 'Training Loss',
-                      data: trainLosses,
-                      borderColor: 'rgb(75, 192, 192)',
-                      tension: 0.1,
-                      fill: false
-                  },
-                  {
-                      label: 'Validation Loss',
-                      data: valLosses,
-                      borderColor: 'rgb(255, 99, 132)',
-                      tension: 0.1,
-                      fill: false
-                  }
-              ]
-          },
-          options: {
-              responsive: true,
-              maintainAspectRatio: true,
-              scales: {
-                  x: {
-                      title: {
-                          display: true,
-                          text: 'Epoch'
-                      }
-                  },
-                  y: {
-                      title: {
-                          display: true,
-                          text: 'Loss (MSE)'
-                      }
-                  }
+  const ctx = document.getElementById('lossChart').getContext('2d');
+  const lossChart = new Chart(ctx, {
+      type: 'line',
+      data: {
+          labels: epochs,
+          datasets: [
+              {
+                  label: 'Training Loss',
+                  data: trainLosses,
+                  borderColor: 'rgb(75, 192, 192)',
+                  tension: 0.1,
+                  fill: false
               },
-              plugins: {
+              {
+                  label: 'Validation Loss',
+                  data: valLosses,
+                  borderColor: 'rgb(255, 99, 132)',
+                  tension: 0.1,
+                  fill: false
+              }
+          ]
+      },
+      options: {
+          responsive: true,
+          maintainAspectRatio: true,
+          scales: {
+              x: {
                   title: {
                       display: true,
-                      text: 'Training and Validation Loss over Epochs'
+                      text: 'Epoch'
+                  }
+              },
+              y: {
+                  title: {
+                      display: true,
+                      text: 'Loss (MSE)'
                   }
               }
+          },
+          plugins: {
+              title: {
+                  display: true,
+                  text: 'Training and Validation Loss over Epochs'
+              }
           }
-      });
-    </script>
-  </div>
-  {% endblock %}
-</body>
+      }
+  });
+</script>
+{% endblock %}

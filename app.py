@@ -33,6 +33,14 @@ LOG_DIR = config.LOG_DIR
 def log_to_both(message):
     print(message)
 
+def get_last_n_days_data(df, n_days):
+    """
+    Mengambil n_days terakhir dari DataFrame, pastikan data lengkap.
+    """
+    if len(df) < n_days:
+        return None
+    return df.iloc[-n_days:]
+
 def login_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
@@ -121,30 +129,73 @@ def index():
     default_end_date = datetime.now().strftime('%Y-%m-%d')
     default_start_date = (datetime.now() - timedelta(days=365*5)).strftime('%Y-%m-%d')
 
+    default_epochs = config.DEFAULT_EPOCHS
+    default_learning_rate = config.DEFAULT_LEARNING_RATE
+    default_dropout_rate = config.DEFAULT_DROPOUT_RATE
+    default_patience = config.EARLY_STOPPING_PATIENCE
+
     if request.method == 'POST':
         ticker = request.form.get('ticker', default_ticker).upper()
         start_date_str = request.form.get('start_date')
         end_date_str = request.form.get('end_date')
 
         try:
+            epochs = int(request.form.get('epochs', default_epochs))
+            learning_rate = float(request.form.get('learning_rate', default_learning_rate))
+            dropout_rate = float(request.form.get('dropout_rate', default_dropout_rate))
+            patience = int(request.form.get('patience', default_patience))
+
+            app.config['current_epochs'] = epochs
+            app.config['current_learning_rate'] = learning_rate
+            app.config['current_dropout_rate'] = dropout_rate
+            app.config['current_patience'] = patience
+
+            flash("Parameter pelatihan model telah diatur.", 'info')
+
+        except ValueError:
+            flash("Input parameter pelatihan tidak valid. Harap masukkan angka yang benar.", 'error')
+            return render_template('index.html', 
+                                   default_ticker=ticker, 
+                                   default_start_date=start_date_str, 
+                                   default_end_date=end_date_str,
+                                   default_epochs=default_epochs, 
+                                   default_learning_rate=default_learning_rate,
+                                   default_dropout_rate=default_dropout_rate,
+                                   default_patience=default_patience)
+
+
+        try:
             start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date()
             end_date = datetime.strptime(end_date_str, '%Y-%m-%d').date()
             if start_date >= end_date:
                 flash("Tanggal mulai harus sebelum tanggal selesai.", 'error')
-                return render_template('index.html', default_ticker=ticker, default_start_date=start_date_str, default_end_date=end_date_str)
+                return render_template('index.html', default_ticker=ticker, default_start_date=start_date_str, default_end_date=end_date_str,
+                                       default_epochs=epochs,
+                                       default_learning_rate=learning_rate,
+                                       default_dropout_rate=dropout_rate,
+                                       default_patience=patience)
             if start_date > datetime.now().date() or end_date > datetime.now().date() + timedelta(days=1):
                 flash("Tanggal tidak boleh di masa depan.", 'error')
-                return render_template('index.html', default_ticker=ticker, default_start_date=start_date_str, default_end_date=end_date_str)
+                return render_template('index.html', default_ticker=ticker, default_start_date=start_date_str, default_end_date=end_date_str,
+                                       default_epochs=epochs, 
+                                       default_learning_rate=learning_rate,
+                                       default_dropout_rate=dropout_rate,
+                                       default_patience=patience)
         except ValueError:
             flash("Format tanggal tidak valid. GunakanYYYY-MM-DD.", 'error')
-            return render_template('index.html', default_ticker=ticker, default_start_date=start_date_str, default_end_date=end_date_str)
+            return render_template('index.html', default_ticker=ticker, default_start_date=start_date_str, default_end_date=end_date_str,
+                                   default_epochs=epochs, 
+                                   default_learning_rate=learning_rate,
+                                   default_dropout_rate=dropout_rate,
+                                   default_patience=patience)
 
         try:
             data_yf = yf.download(ticker, start=start_date, end=end_date)
 
             if data_yf.empty:
                 flash(f"Tidak ada data ditemukan untuk {ticker} pada periode tersebut.", 'error')
-                return render_template('index.html', default_ticker=ticker, default_start_date=start_date_str, default_end_date=end_date_str)
+                return render_template('index.html', default_ticker=ticker, default_start_date=start_date_str, default_end_date=end_date_str,
+                                       default_epochs=epochs, default_learning_rate=learning_rate, default_dropout_rate=dropout_rate, default_patience=patience)
 
             new_records_count = 0
             for index, row in data_yf.iterrows():
@@ -183,13 +234,22 @@ def index():
             data_yf.to_csv(file_path)
 
             flash(f"Data {ticker} berhasil diunduh dan {new_records_count} record baru disimpan ke database. File CSV juga disimpan sebagai {file_name}", 'success')
-            return render_template('index.html', downloaded_file=file_name, default_ticker=ticker, default_start_date=start_date_str, default_end_date=end_date_str)
+            return render_template('index.html', downloaded_file=file_name, default_ticker=ticker, default_start_date=start_date_str, default_end_date=end_date_str,
+                                   default_epochs=epochs, default_learning_rate=learning_rate, default_dropout_rate=dropout_rate, default_patience=patience)
         except Exception as e:
             db.session.rollback()
             flash(f"Terjadi kesalahan saat mengambil atau menyimpan data: {e}. Coba lagi.", 'error')
-            return render_template('index.html', default_ticker=ticker, default_start_date=start_date_str, default_end_date=end_date_str)
+            return render_template('index.html', default_ticker=ticker, default_start_date=start_date_str, default_end_date=end_date_str,
+                                   default_epochs=epochs, default_learning_rate=learning_rate, default_dropout_rate=dropout_rate, default_patience=patience)
 
-    return render_template('index.html', default_ticker=default_ticker, default_start_date=default_start_date, default_end_date=default_end_date)
+    return render_template('index.html', 
+                           default_ticker=default_ticker, 
+                           default_start_date=default_start_date, 
+                           default_end_date=default_end_date,
+                           default_epochs=default_epochs,
+                           default_learning_rate=default_learning_rate,
+                           default_dropout_rate=default_dropout_rate,
+                           default_patience=default_patience)
 
 @app.route('/download/<filename>')
 @admin_required
@@ -268,14 +328,19 @@ def preprocess():
     INPUT_DIM = len(features_to_scale)
     HIDDEN_DIM = config.DEFAULT_HIDDEN_DIM 
     OUTPUT_DIM = 1
-    DROPOUT_RATE = config.DEFAULT_DROPOUT_RATE 
-    LEARNING_RATE = config.DEFAULT_LEARNING_RATE
-    
+    EPOCHS = app.config.get('current_epochs', config.DEFAULT_EPOCHS)
+    LEARNING_RATE = app.config.get('current_learning_rate', config.DEFAULT_LEARNING_RATE)
+    DROPOUT_RATE = app.config.get('current_dropout_rate', config.DEFAULT_DROPOUT_RATE)
+    EARLY_STOPPING_PATIENCE = app.config.get('current_patience', config.EARLY_STOPPING_PATIENCE)
+
+
     lr_str = str(LEARNING_RATE).replace('.', '')
     do_str = str(DROPOUT_RATE).replace('.', '')
 
+
     gru_model = None
     model_filename = os.path.join(MODEL_DIR, f'GRU_weights_{ticker}_H{HIDDEN_DIM}_L{LOOKBACK_WINDOW}_F{INPUT_DIM}_LR{lr_str}_DO{do_str}.npz')
+
 
     model_loaded_from_cache = False 
 
@@ -314,6 +379,8 @@ def preprocess():
     app.config['train_size_sequences'] = train_size_sequences
     app.config['dropout_rate'] = DROPOUT_RATE
     app.config['learning_rate'] = LEARNING_RATE
+    app.config['epochs'] = EPOCHS
+    app.config['early_stopping_patience'] = EARLY_STOPPING_PATIENCE
 
     flash(f"Data {ticker} telah dimuat dari database dan diproses awal. Total {len(df)} record. "
           f"Sequence data (Train X: {X_train_data.shape}, Train y: {y_train_data.shape}, "
@@ -321,7 +388,10 @@ def preprocess():
           f"dibuat dengan lookback window {LOOKBACK_WINDOW}. "
           f"Model GRU diinisialisasi dengan input_dim {INPUT_DIM}, hidden_dim {HIDDEN_DIM}, dropout_rate {DROPOUT_RATE}.", 'info')
 
-    display_df = df.head(10).to_html(classes='data-table') + "<br>" + df.tail(10).to_html(classes='data-table')
+    pd.set_option('display.max_rows', None) 
+    head_html = df.head(10).to_html(classes='table table-bordered table-striped table-sm', index=True, border=0)
+    tail_html = df.tail(10).to_html(classes='table table-bordered table-striped table-sm', index=True, border=0)
+    display_df = f"{head_html}<br><br>{tail_html}"
 
     return render_template('preprocess.html',
                            data_html=display_df,
@@ -330,6 +400,8 @@ def preprocess():
                            show_preprocess_results=True,
                            lookback_window=LOOKBACK_WINDOW,
                            learning_rate=LEARNING_RATE,
+                           epochs=EPOCHS,
+                           early_stopping_patience=EARLY_STOPPING_PATIENCE,
                            X_shape_train=X_train_data.shape,
                            y_shape_train=y_train_data.shape,
                            X_shape_val=X_val_data.shape,
@@ -355,8 +427,11 @@ def train_model():
     INPUT_DIM = app.config.get('input_dim')
     HIDDEN_DIM = app.config.get('hidden_dim')
     OUTPUT_DIM = app.config.get('output_dim')
-    DROPOUT_RATE = app.config.get('dropout_rate')
-    LEARNING_RATE = app.config.get('learning_rate')
+    EPOCHS = app.config.get('current_epochs', config.DEFAULT_EPOCHS)
+    LEARNING_RATE = app.config.get('current_learning_rate', config.DEFAULT_LEARNING_RATE)
+    DROPOUT_RATE = app.config.get('current_dropout_rate', config.DEFAULT_DROPOUT_RATE)
+    EARLY_STOPPING_PATIENCE = app.config.get('current_patience', config.EARLY_STOPPING_PATIENCE)
+
 
     if X_train is None or y_train is None or X_val is None or y_val is None or gru_model is None or scaler is None:
         flash("Data atau model belum disiapkan. Silakan kunjungi halaman preprocess terlebih dahulu.", 'error')
@@ -369,9 +444,6 @@ def train_model():
         flash("Dimensi atau dropout rate model yang dimuat tidak cocok dengan konfigurasi saat ini. Silakan inisialisasi ulang model di halaman Preprocessing.", 'error')
         return redirect(url_for('preprocess', ticker=ticker))
 
-    EPOCHS = config.DEFAULT_EPOCHS
-    LEARNING_RATE = config.DEFAULT_LEARNING_RATE
-    EARLY_STOPPING_PATIENCE = config.EARLY_STOPPING_PATIENCE
     BATCH_SIZE = config.DEFAULT_BATCH_SIZE 
     
     lr_str = str(LEARNING_RATE).replace('.', '')
@@ -386,7 +458,7 @@ def train_model():
     best_model_weights = None
 
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-    log_filename = os.path.join(LOG_DIR, f'train_log_{ticker}_HD{HIDDEN_DIM}_LR{LEARNING_RATE}_DO{DROPOUT_RATE}_BS{BATCH_SIZE}_W{lookback_window}_{timestamp}.txt')
+    log_filename = os.path.join(LOG_DIR, f'train_log_{ticker}_HD{HIDDEN_DIM}_LR{lr_str}_DO{do_str}_BS{BATCH_SIZE}_W{lookback_window}_{timestamp}.txt')
 
     current_training_logs = []
     def log_to_both(message):
@@ -400,7 +472,7 @@ def train_model():
     log_to_both(f"- Ticker Saham: {ticker}")
     log_to_both(f"- Lookback Window: {lookback_window} hari")
     log_to_both(f"- Dimensi Tersembunyi (Hidden Dim): {HIDDEN_DIM}")
-    log_to_both(f"- Jumlah Fitur Input: {INPUT_DIM}") # F
+    log_to_both(f"- Jumlah Fitur Input: {INPUT_DIM}") 
     log_to_both(f"- Epochs Maksimal: {EPOCHS}")
     log_to_both(f"- Learning Rate: {LEARNING_RATE}")
     log_to_both(f"- Dropout Rate: {DROPOUT_RATE}")
@@ -424,7 +496,7 @@ def train_model():
                 end_idx = min((i + 1) * BATCH_SIZE, X_train_shuffled.shape[0])
 
                 x_batch = X_train_shuffled[start_idx:end_idx] 
-                y_batch = y_train_shuffled[start_idx:end_idx].reshape(-1, 1)
+                y_batch = y_train_shuffled[start_idx:end_idx].reshape(-1, 1) 
 
                 y_pred_scaled = gru_model.forward(x_batch) 
 
@@ -595,9 +667,7 @@ def predict_price():
     mape = mape_loss(predictions_original, y_true_original) 
 
     train_size_sequences = app.config.get('train_size_sequences')
-
     start_index_for_val_dates_in_df = train_size_sequences + lookback_window
-
     predicted_dates = df_full_preprocessed.index[start_index_for_val_dates_in_df : start_index_for_val_dates_in_df + test_size]
 
 
@@ -608,9 +678,16 @@ def predict_price():
             'True Price': f"{y_true_original[i, 0]:.2f}",
             'Predicted Price': f"{predictions_original[i, 0]:.2f}"
         })
-        
+
+    full_prediction_data = [\
+        {'Date': predicted_dates[i].strftime('%Y-%m-%d'),\
+         'True Price': y_true_original[i, 0], \
+         'Predicted Price': predictions_original[i, 0]} \
+        for i in range(test_size)\
+    ]
+    
     full_prediction_data_for_db = [
-        {'date': predicted_dates[i],
+        {'date': predicted_dates[i], 
          'true_price': float(y_true_original[i, 0]),
          'predicted_price': float(predictions_original[i, 0])}
         for i in range(test_size)
@@ -680,7 +757,139 @@ def predict_price():
                            mae=mae, 
                            mape=mape, 
                            prediction_results=display_results,
-                           total_predictions=test_size)
+                           total_predictions=test_size,
+                           full_prediction_data=full_prediction_data)
+
+@app.route('/predict_future', methods=['GET'])
+@admin_required 
+def predict_future():
+    ticker = config.DEFAULT_TICKER
+    lookback_window = app.config.get('lookback_window', config.DEFAULT_LOOKBACK_WINDOW)
+    gru_model = app.config.get('gru_model')
+    scaler = app.config.get('scaler_all_features')
+    features_to_scale = app.config.get('features_to_scale')
+    df_full_preprocessed = app.config.get('df_full_preprocessed') 
+
+    if gru_model is None or scaler is None or df_full_preprocessed is None or features_to_scale is None:
+        flash("Model atau data belum disiapkan. Silakan proses data dan latih model terlebih dahulu.", 'error')
+        return redirect(url_for('preprocess', ticker=ticker))
+
+    if len(df_full_preprocessed) < lookback_window:
+        flash("Tidak cukup data historis untuk melakukan prediksi future (perlu setidaknya lookback window hari).", 'error')
+        return redirect(url_for('index', ticker=ticker))
+
+    FUTURE_PREDICTION_DAYS = config.DEFAULT_FUTURE_PREDICTION_DAYS 
+
+    last_sequence_df = get_last_n_days_data(df_full_preprocessed, lookback_window)
+    if last_sequence_df is None:
+        flash("Gagal mendapatkan data historis terakhir.", 'error')
+        return redirect(url_for('index', ticker=ticker))
+    
+    last_historical_data_df = df_full_preprocessed.iloc[-lookback_window:]
+
+    last_sequence_scaled = scaler.transform(last_sequence_df[features_to_scale].values)
+    
+    last_known_features_original = df_full_preprocessed.iloc[-1][features_to_scale].values.copy()
+    
+    adj_close_index = features_to_scale.index('Adj Close')
+
+    future_predictions_original = []
+    future_dates = []
+    
+    current_sequence = last_sequence_scaled.copy() 
+
+    gru_model.set_training_mode(False)
+
+    last_historical_date = df_full_preprocessed.index[-1]
+
+    for i in range(FUTURE_PREDICTION_DAYS):
+        next_date = last_historical_date + timedelta(days=i + 1)
+        future_dates.append(next_date.strftime('%Y-%m-%d'))
+
+        # Buat input untuk model (shape: 1, lookback_window, input_dim)
+        input_for_prediction = current_sequence.reshape(1, lookback_window, len(features_to_scale))
+
+        # Lakukan prediksi (scaled)
+        predicted_scaled_adj_close = gru_model.forward(input_for_prediction)[0, 0]
+
+        # Invers transformasi prediksi untuk mendapatkan harga asli
+        # Untuk melakukan inverse_transform, kita butuh array dummy dengan num_features
+        dummy_row_scaled = np.zeros((1, len(features_to_scale)))
+        dummy_row_scaled[0, adj_close_index] = predicted_scaled_adj_close
+        
+        predicted_original_adj_close = scaler.inverse_transform(dummy_row_scaled)[0, adj_close_index]
+        future_predictions_original.append(predicted_original_adj_close)
+
+        # Update current_sequence untuk iterasi berikutnya (rekursif)
+        # Geser sequence ke kiri (hapus elemen tertua)
+        current_sequence = np.roll(current_sequence, -1, axis=0)
+        
+        # Buat baris baru untuk elemen terbaru di sequence
+        new_feature_values_scaled = last_sequence_scaled[-1].copy() # Ambil scaled features terakhir
+        new_feature_values_scaled[adj_close_index] = predicted_scaled_adj_close # Perbarui Adj Close dengan prediksi
+        
+        last_original_row = df_full_preprocessed.iloc[-1]
+        # Untuk fitur non-Adj Close di future sequence, kita bawa maju nilai dari hari terakhir yang diketahui (diskalakan)
+        # Atau, bisa juga menggunakan prediksi Adj Close yang baru diskalakan untuk mengisi Open/High/Low/Close
+        # Untuk indikator teknis, asumsi paling sederhana adalah mereka "membawa maju" nilai dari hari terakhir.
+        # Ini adalah penyederhanaan yang signifikan, karena indikator bergantung pada banyak hari sebelumnya.
+        # Strategi yang lebih canggih akan melibatkan model terpisah untuk memprediksi indikator ini.
+        
+        # Pilihan 1 (Sederhana): Bawa maju semua fitur non-Adj Close dari hari terakhir yang diketahui
+        # Dan Adj Close adalah prediksi
+        scaled_last_known_features = scaler.transform(last_known_features_original.reshape(1, -1))[0]
+        for idx, feature_name in enumerate(features_to_scale):
+            if feature_name != 'Adj Close':
+                original_val = last_original_row[feature_name]
+                scaled_val_at_original_index = scaler.transform(np.array([[original_val]*len(features_to_scale)]))[0][idx]
+                new_input_row_scaled[idx] = scaled_val_at_original_index
+                new_feature_values_scaled[idx] = scaled_last_known_features[idx] 
+        # Pilihan 2 (Alternatif): Gunakan prediksi Adj Close untuk mengisi Open/High/Low/Close, dan indikator bawa maju
+        # Ini lebih cocok jika harga OHLC cenderung mengikuti Adj Close
+        # Untuk saat ini, kita akan menggunakan Pilihan 1 (membawa maju sebagian besar fitur non-Adj Close dari data terakhir).
+        # Namun, kita perlu memikirkan bagaimana indikator akan berubah.
+        
+        # Paling Sederhana & Paling Umum di GRU Iteratif:
+        # Untuk input berikutnya, gunakan prediksi Adj Close yang baru untuk kolom Adj Close,
+        # dan semua fitur *lainnya* pada langkah waktu tersebut sama dengan nilai dari time step sebelumnya.
+        # Ini menciptakan 'flat' projection untuk fitur non-target, yang realistis tanpa model forecasting multivariat.
+        
+        # Ambil baris terakhir dari current_sequence (sebelum digeser) untuk menginisialisasi nilai fitur baru.
+        # Ini penting agar indikator seperti SMA/EMA/RSI bisa "terbentuk" dari data yang disederhanakan.
+        new_input_row_scaled = current_sequence[-1].copy() 
+        new_input_row_scaled[adj_close_index] = predicted_scaled_adj_close # Perbarui hanya Adj Close
+
+        current_sequence[-1] = new_input_row_scaled # Ganti elemen terakhir dengan baris baru
+
+    future_predictions_formatted = []
+    for i, pred_price in enumerate(future_predictions_original):
+        future_predictions_formatted.append({
+            'Date': future_dates[i],
+            'Predicted Price': f"{pred_price:.2f}"
+        })
+        
+    historical_for_chart = []
+    for date, row in last_historical_data_df.iterrows():
+        historical_for_chart.append({
+            'Date': date.strftime('%Y-%m-%d'),
+            'Price': row['Adj Close'] 
+        })
+    
+    future_for_chart = []
+    for i, pred_price_orig in enumerate(future_predictions_original):
+        future_for_chart.append({
+            'Date': future_dates[i],
+            'Price': pred_price_orig 
+        })
+    
+    flash(f"Prediksi harga saham {ticker} untuk {FUTURE_PREDICTION_DAYS} hari ke depan berhasil dilakukan.", 'success')
+
+    return render_template('predict_future.html',
+                           ticker=ticker,
+                           future_predictions=future_predictions_formatted,
+                           future_prediction_days=FUTURE_PREDICTION_DAYS,
+                           historical_for_chart=historical_for_chart,
+                           future_for_chart=future_for_chart)
     
 @app.route('/admin/models')
 @admin_required
@@ -793,5 +1002,4 @@ if __name__ == '__main__':
             db.session.add(admin_user)
             db.session.commit()
             print("Pengguna admin default 'admin' dengan password 'adminpass' telah dibuat.")
-            print("HARAP UBAH PASSWORD DEFAULT INI DI PRODUKSI!")
     app.run(debug=True)

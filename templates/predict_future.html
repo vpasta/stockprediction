@@ -1,0 +1,224 @@
+{% extends "admin_base.html" %} {% block title %}Prediksi Harga Saham Masa
+Depan{% endblock %} {% block page_title %}Prediksi Harga Saham {{ ticker }} ({{
+future_prediction_days }} Hari ke Depan){% endblock %} {% block content %}
+<div class="card">
+  <div class="card-header">
+    <h3 class="card-title">Hasil Prediksi Masa Depan</h3>
+  </div>
+  <div class="card-body">
+    {% with messages = get_flashed_messages(with_categories=true) %} {% if
+    messages %} {% for category, message in messages %}
+    <div
+      class="alert alert-{% if category == 'error' %}danger{% elif category == 'info' %}info{% elif category == 'warning' %}warning{% else %}success{% endif %}"
+      role="alert"
+    >
+      {{ message }}
+    </div>
+    {% endfor %} {% endif %} {% endwith %}
+
+    <div class="controls text-center mb-4">
+      <a href="{{ url_for('predict_price') }}" class="btn btn-secondary mr-2"
+        >Kembali ke Prediksi Historis</a
+      >
+      <a href="{{ url_for('admin_dashboard') }}" class="btn btn-info"
+        >Kembali ke Dashboard Admin</a
+      >
+    </div>
+
+    <p class="text-center text-muted">
+      Berikut adalah prediksi harga saham {{ ticker }} untuk {{
+      future_prediction_days }} hari ke depan. Harap dicatat bahwa prediksi
+      semakin jauh ke depan cenderung memiliki akurasi yang lebih rendah karena
+      akumulasi kesalahan.
+    </p>
+
+    <h4 class="mt-4 mb-3 text-center">Grafik Prediksi Harga Saham</h4>
+    {% if historical_for_chart or future_for_chart %}
+    <canvas
+      id="futurePredictionChart"
+      style="max-width: 100%; height: auto"
+    ></canvas>
+    {% else %}
+    <p class="text-center text-muted">
+      Tidak ada data untuk menampilkan grafik.
+    </p>
+    {% endif %} {% if future_predictions %}
+    <h4 class="mt-4 mb-3 text-center">Detail Tabel Prediksi</h4>
+    <div class="table-responsive">
+      <table class="table table-bordered table-striped">
+        <thead>
+          <tr>
+            <th>Tanggal</th>
+            <th>Harga Prediksi</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for prediction in future_predictions %}
+          <tr>
+            <td>{{ prediction['Date'] }}</td>
+            <td>{{ prediction['Predicted Price'] }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p class="text-center text-muted">
+      Tidak ada prediksi masa depan yang tersedia.
+    </p>
+    {% endif %}
+  </div>
+</div>
+{% endblock %} {% block scripts_extra %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@^1.0.0"></script>
+<script>
+  const historicalData = {{ historical_for_chart | tojson }} || [];
+  const futureData = {{ future_for_chart | tojson }} || [];
+
+  // Gabungkan tanggal untuk sumbu X
+  const allDates = historicalData.map(d => d.Date).concat(futureData.map(d => d.Date));
+
+  // Siapkan data untuk garis historis
+  const historicalPrices = historicalData.map(d => d.Price);
+  // Siapkan data untuk garis prediksi masa depan (mulai dari NaN pada tanggal historis)
+  const futurePrices = Array(historicalData.length - 1).fill(NaN).concat(futureData.map(d => d.Price));
+
+  // Data untuk garis yang menunjukkan akhir data historis
+  const lastHistoricalDate = historicalData.length > 0 ? historicalData[historicalData.length - 1].Date : null;
+  const lastHistoricalPrice = historicalData.length > 0 ? historicalData[historicalData.length - 1].Price : null;
+
+  if (allDates.length > 0) {
+      const ctx = document.getElementById('futurePredictionChart').getContext('2d');
+      const futureChart = new Chart(ctx, {
+          type: 'line',
+          data: {
+              labels: allDates,
+              datasets: [
+                  {
+                      label: 'Data Historis',
+                      data: historicalPrices,
+                      borderColor: 'rgb(54, 162, 235)',
+                      tension: 0.1,
+                      fill: false,
+                      pointRadius: 0,
+                  },
+                  {
+                      label: 'Prediksi Masa Depan',
+                      data: futurePrices,
+                      borderColor: 'rgb(255, 99, 132)',
+                      tension: 0.1,
+                      fill: false,
+                      pointRadius: 0,
+                      spanGaps: true,
+                  },
+              ],
+          },
+          options: {
+              responsive: true,
+              maintainAspectRatio: true,
+              scales: {
+                  x: {
+                      title: {
+                          display: true,
+                          text: 'Tanggal',
+                      },
+                      grid: {
+                          display: true,
+                      },
+                      afterBuildTicks: function(axis) {
+                          if (lastHistoricalDate) {
+                              const lastIndex = allDates.indexOf(lastHistoricalDate);
+                              if (lastIndex !== -1) {
+                                  axis.ticks.push({
+                                      value: lastIndex,
+                                      label: '',
+                                      major: true
+                                  });
+                              }
+                          }
+                      },
+                  },
+                  y: {
+                      title: {
+                          display: true,
+                          text: 'Harga Saham ($)',
+                      },
+                      grid: {
+                          display: true,
+                      }
+                  },
+              },
+              plugins: {
+                  title: {
+                      display: true,
+                      text: 'Prediksi Harga Saham di Masa Depan',
+                  },
+                  tooltip: {
+                      callbacks: {
+                          label: function (context) {
+                              let label = context.dataset.label || '';
+                              if (label) {
+                                  label += ': ';
+                              }
+                              if (context.parsed.y !== null) {
+                                  label += new Intl.NumberFormat('en-US', {
+                                      style: 'currency',
+                                      currency: 'USD',
+                                  }).format(context.parsed.y);
+                              }
+                              return label;
+                          },
+                      },
+                  },
+                  annotation: { // Untuk menambahkan garis vertikal yang lebih baik
+                      annotations: {
+                          line1: {
+                              type: 'line',
+                              xMin: lastHistoricalDate,
+                              xMax: lastHistoricalDate,
+                              borderColor: 'rgb(75, 192, 192)', // Warna hijau atau yang lain
+                              borderWidth: 2,
+                              borderDash: [5, 5],
+                              label: {
+                                  content: 'Akhir Data Historis',
+                                  enabled: false,
+                                  position: 'top',
+                                  yAdjust: -10,
+                              }
+                          }
+                      }
+                  },
+                  zoom: {
+                      pan: {
+                          enabled: true,
+                          mode: 'x',
+                      },
+                      zoom: {
+                          wheel: {
+                              enabled: true,
+                          },
+                          pinch: {
+                              enabled: true,
+                          },
+                          mode: 'x',
+                      },
+                  },
+              },
+              interaction: {
+                  mode: 'index',
+                  intersect: false,
+              },
+          },
+      });
+  } else {
+      document.getElementById('futurePredictionChart').style.display = 'none';
+      const noDataMessage = document.createElement('p');
+      noDataMessage.textContent = 'Tidak ada data untuk menampilkan grafik.';
+      noDataMessage.style.textAlign = 'center';
+      noDataMessage.style.color = '#555';
+      document.getElementById('futurePredictionChart').parentNode.insertBefore(noDataMessage, document.getElementById('futurePredictionChart').nextSibling);
+  }
+</script>
+{% endblock %}
