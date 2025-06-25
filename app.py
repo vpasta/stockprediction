@@ -820,8 +820,9 @@ def predict_future():
         predicted_original_adj_close = scaler.inverse_transform(dummy_row_scaled)[0, adj_close_index]
         future_predictions_original.append(predicted_original_adj_close)
 
-        # Update current_sequence untuk iterasi berikutnya (rekursif)
-        # Geser sequence ke kiri (hapus elemen tertua)
+        new_input_row_scaled = current_sequence[-1].copy()
+        new_input_row_scaled[adj_close_index] = predicted_scaled_adj_close
+        
         current_sequence = np.roll(current_sequence, -1, axis=0)
         
         # Buat baris baru untuk elemen terbaru di sequence
