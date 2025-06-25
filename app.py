@@ -767,7 +767,7 @@ def predict_future():
     lookback_window = app.config.get('lookback_window', config.DEFAULT_LOOKBACK_WINDOW)
     gru_model = app.config.get('gru_model')
     scaler = app.config.get('scaler_all_features')
-    features_to_scale = app.config.get('features_to_scale')
+    features_to_scale = app.config.get('features_to_scale') 
     df_full_preprocessed = app.config.get('df_full_preprocessed') 
 
     if gru_model is None or scaler is None or df_full_preprocessed is None or features_to_scale is None:
@@ -775,92 +775,67 @@ def predict_future():
         return redirect(url_for('preprocess', ticker=ticker))
 
     if len(df_full_preprocessed) < lookback_window:
-        flash("Tidak cukup data historis untuk melakukan prediksi future (perlu setidaknya lookback window hari).", 'error')
+        flash(f"Tidak cukup data historis ({len(df_full_preprocessed)} hari). Diperlukan setidaknya {lookback_window} hari untuk lookback window.", 'error')
         return redirect(url_for('index', ticker=ticker))
 
     FUTURE_PREDICTION_DAYS = config.DEFAULT_FUTURE_PREDICTION_DAYS 
 
-    last_sequence_df = get_last_n_days_data(df_full_preprocessed, lookback_window)
-    if last_sequence_df is None:
-        flash("Gagal mendapatkan data historis terakhir.", 'error')
-        return redirect(url_for('index', ticker=ticker))
+    # 1. Ambil lookback_window data TERAKHIR dari DataFrame yang sudah diproses
+    #    Ini akan menjadi input awal untuk prediksi masa depan.
+    last_historical_data_for_sequence_df = df_full_preprocessed.iloc[-lookback_window:]
     
-    last_historical_data_df = df_full_preprocessed.iloc[-lookback_window:]
-
-    last_sequence_scaled = scaler.transform(last_sequence_df[features_to_scale].values)
+    # 2. Transformasi lookback_window data TERAKHIR ke skala (ini akan menjadi current_sequence awal)
+    current_sequence_scaled = scaler.transform(last_historical_data_for_sequence_df[features_to_scale].values)
     
-    last_known_features_original = df_full_preprocessed.iloc[-1][features_to_scale].values.copy()
+    # 3. Ambil baris data AKTUAL TERAKHIR dari DataFrame asli (original scale)
+    last_actual_row_original = df_full_preprocessed.iloc[-1][features_to_scale].values.copy()
     
     adj_close_index = features_to_scale.index('Adj Close')
 
-    future_predictions_original = []
-    future_dates = []
+    future_predictions_original = [] 
+    future_dates = [] 
     
-    current_sequence = last_sequence_scaled.copy() 
+    current_sequence = current_sequence_scaled.copy() 
 
-    gru_model.set_training_mode(False)
+    gru_model.set_training_mode(False) 
 
-    last_historical_date = df_full_preprocessed.index[-1]
+    last_historical_date_obj = df_full_preprocessed.index[-1] 
 
     for i in range(FUTURE_PREDICTION_DAYS):
-        next_date = last_historical_date + timedelta(days=i + 1)
-        future_dates.append(next_date.strftime('%Y-%m-%d'))
+        next_prediction_date = last_historical_date_obj + timedelta(days=i + 1)
+        future_dates.append(next_prediction_date.strftime('%Y-%m-%d'))
 
-        # Buat input untuk model (shape: 1, lookback_window, input_dim)
         input_for_prediction = current_sequence.reshape(1, lookback_window, len(features_to_scale))
 
-        # Lakukan prediksi (scaled)
         predicted_scaled_adj_close = gru_model.forward(input_for_prediction)[0, 0]
 
-        # Invers transformasi prediksi untuk mendapatkan harga asli
-        # Untuk melakukan inverse_transform, kita butuh array dummy dengan num_features
-        dummy_row_scaled = np.zeros((1, len(features_to_scale)))
-        dummy_row_scaled[0, adj_close_index] = predicted_scaled_adj_close
-        
-        predicted_original_adj_close = scaler.inverse_transform(dummy_row_scaled)[0, adj_close_index]
+        dummy_row_for_inverse = np.zeros((1, len(features_to_scale)))
+        dummy_row_for_inverse[0, adj_close_index] = predicted_scaled_adj_close
+        predicted_original_adj_close = scaler.inverse_transform(dummy_row_for_inverse)[0, adj_close_index]
         future_predictions_original.append(predicted_original_adj_close)
 
-        new_input_row_scaled = current_sequence[-1].copy()
-        new_input_row_scaled[adj_close_index] = predicted_scaled_adj_close
+        next_original_row_features = last_actual_row_original.copy() 
+        
+        next_original_row_features[adj_close_index] = predicted_original_adj_close
+        
+        open_idx = features_to_scale.index('Open')
+        high_idx = features_to_scale.index('High')
+        low_idx = features_to_scale.index('Low')
+        close_idx = features_to_scale.index('Close')
+
+        next_original_row_features[open_idx] = predicted_original_adj_close * (1 + np.random.uniform(-0.005, 0.005)) 
+        next_original_row_features[high_idx] = max(predicted_original_adj_close, predicted_original_adj_close * (1 + np.random.uniform(0.001, 0.01))) 
+        next_original_row_features[low_idx] = min(predicted_original_adj_close, predicted_original_adj_close * (1 - np.random.uniform(0.001, 0.01))) 
+        next_original_row_features[close_idx] = predicted_original_adj_close 
+        
+        volume_idx = features_to_scale.index('Volume')
+        next_original_row_features[volume_idx] = df_full_preprocessed.iloc[-1]['Volume'] * (1 + np.random.uniform(-0.1, 0.1))
+        next_original_row_features[volume_idx] = max(0, next_original_row_features[volume_idx])
+            
+        next_input_row_scaled = scaler.transform(next_original_row_features.reshape(1, -1))[0]
         
         current_sequence = np.roll(current_sequence, -1, axis=0)
-        
-        # Buat baris baru untuk elemen terbaru di sequence
-        new_feature_values_scaled = last_sequence_scaled[-1].copy() # Ambil scaled features terakhir
-        new_feature_values_scaled[adj_close_index] = predicted_scaled_adj_close # Perbarui Adj Close dengan prediksi
-        
-        last_original_row = df_full_preprocessed.iloc[-1]
-        # Untuk fitur non-Adj Close di future sequence, kita bawa maju nilai dari hari terakhir yang diketahui (diskalakan)
-        # Atau, bisa juga menggunakan prediksi Adj Close yang baru diskalakan untuk mengisi Open/High/Low/Close
-        # Untuk indikator teknis, asumsi paling sederhana adalah mereka "membawa maju" nilai dari hari terakhir.
-        # Ini adalah penyederhanaan yang signifikan, karena indikator bergantung pada banyak hari sebelumnya.
-        # Strategi yang lebih canggih akan melibatkan model terpisah untuk memprediksi indikator ini.
-        
-        # Pilihan 1 (Sederhana): Bawa maju semua fitur non-Adj Close dari hari terakhir yang diketahui
-        # Dan Adj Close adalah prediksi
-        scaled_last_known_features = scaler.transform(last_known_features_original.reshape(1, -1))[0]
-        for idx, feature_name in enumerate(features_to_scale):
-            if feature_name != 'Adj Close':
-                original_val = last_original_row[feature_name]
-                scaled_val_at_original_index = scaler.transform(np.array([[original_val]*len(features_to_scale)]))[0][idx]
-                new_input_row_scaled[idx] = scaled_val_at_original_index
-                new_feature_values_scaled[idx] = scaled_last_known_features[idx] 
-        # Pilihan 2 (Alternatif): Gunakan prediksi Adj Close untuk mengisi Open/High/Low/Close, dan indikator bawa maju
-        # Ini lebih cocok jika harga OHLC cenderung mengikuti Adj Close
-        # Untuk saat ini, kita akan menggunakan Pilihan 1 (membawa maju sebagian besar fitur non-Adj Close dari data terakhir).
-        # Namun, kita perlu memikirkan bagaimana indikator akan berubah.
-        
-        # Paling Sederhana & Paling Umum di GRU Iteratif:
-        # Untuk input berikutnya, gunakan prediksi Adj Close yang baru untuk kolom Adj Close,
-        # dan semua fitur *lainnya* pada langkah waktu tersebut sama dengan nilai dari time step sebelumnya.
-        # Ini menciptakan 'flat' projection untuk fitur non-target, yang realistis tanpa model forecasting multivariat.
-        
-        # Ambil baris terakhir dari current_sequence (sebelum digeser) untuk menginisialisasi nilai fitur baru.
-        # Ini penting agar indikator seperti SMA/EMA/RSI bisa "terbentuk" dari data yang disederhanakan.
-        new_input_row_scaled = current_sequence[-1].copy() 
-        new_input_row_scaled[adj_close_index] = predicted_scaled_adj_close # Perbarui hanya Adj Close
-
-        current_sequence[-1] = new_input_row_scaled # Ganti elemen terakhir dengan baris baru
+        current_sequence[-1] = next_input_row_scaled
 
     future_predictions_formatted = []
     for i, pred_price in enumerate(future_predictions_original):
@@ -868,9 +843,11 @@ def predict_future():
             'Date': future_dates[i],
             'Predicted Price': f"{pred_price:.2f}"
         })
-        
+
+    historical_for_chart_df = df_full_preprocessed.iloc[-lookback_window:] 
+    
     historical_for_chart = []
-    for date, row in last_historical_data_df.iterrows():
+    for date, row in historical_for_chart_df.iterrows():
         historical_for_chart.append({
             'Date': date.strftime('%Y-%m-%d'),
             'Price': row['Adj Close'] 
@@ -882,14 +859,14 @@ def predict_future():
             'Date': future_dates[i],
             'Price': pred_price_orig 
         })
-    
-    flash(f"Prediksi harga saham {ticker} untuk {FUTURE_PREDICTION_DAYS} hari ke depan berhasil dilakukan.", 'success')
+
+    flash(f"Prediksi harga saham {ticker} untuk {config.DEFAULT_FUTURE_PREDICTION_DAYS} hari ke depan berhasil dilakukan.", 'success')
 
     return render_template('predict_future.html',
                            ticker=ticker,
-                           future_predictions=future_predictions_formatted,
-                           future_prediction_days=FUTURE_PREDICTION_DAYS,
-                           historical_for_chart=historical_for_chart,
+                           future_predictions=future_predictions_formatted, 
+                           future_prediction_days=config.DEFAULT_FUTURE_PREDICTION_DAYS,
+                           historical_for_chart=historical_for_chart, 
                            future_for_chart=future_for_chart)
     
 @app.route('/admin/models')
