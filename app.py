@@ -10,7 +10,7 @@ import time
 import traceback
 import sys
 import config
-from utils.db_models import db, StockData, User, SavedModel, PredictionDetail
+from utils.db_models import db, StockData, User, SavedModel, PredictionDetail, FuturePrediction
 from utils.gru_model import GRU
 from utils.data_preprocessing import calculate_technical_indicators, create_sequences
 from utils.loss_functions import mse_loss, mse_loss_derivative, mae_loss, mape_loss
@@ -770,8 +770,26 @@ def predict_future():
     features_to_scale = app.config.get('features_to_scale') 
     df_full_preprocessed = app.config.get('df_full_preprocessed') 
 
+    # --- Ambil parameter model yang digunakan dari app.config untuk menemukan SavedModel ---
+    HIDDEN_DIM = app.config.get('hidden_dim')
+    INPUT_DIM = app.config.get('input_dim')
+    LEARNING_RATE = app.config.get('learning_rate')
+    DROPOUT_RATE = app.config.get('dropout_rate')
+    
+    # Buat model_filepath untuk mencari SavedModel yang sesuai
+    lr_str = str(LEARNING_RATE).replace('.', '')
+    do_str = str(DROPOUT_RATE).replace('.', '')
+    model_filepath = os.path.join(MODEL_DIR, f'GRU_weights_{ticker}_H{HIDDEN_DIM}_L{lookback_window}_F{INPUT_DIM}_LR{lr_str}_DO{do_str}.npz')
+
+    # Cari SavedModel yang relevan di database
+    saved_model_entry = SavedModel.query.filter_by(model_filepath=model_filepath).first()
+
+    if saved_model_entry is None:
+        flash("Tidak dapat menemukan model yang disimpan untuk konfigurasi ini. Pastikan model telah dilatih dan disimpan di halaman Prediksi Historis (Admin).", 'error')
+        return redirect(url_for('predict_price')) # Arahkan ke prediksi historis untuk menyimpan model dulu
+
     if gru_model is None or scaler is None or df_full_preprocessed is None or features_to_scale is None:
-        flash("Model atau data belum disiapkan. Silakan proses data dan latih model terlebih dahulu.", 'error')
+        flash("Data preprocessing atau model GRU tidak tersedia di sesi. Admin perlu mengunjungi halaman preprocess dan melatih model terlebih dahulu.", 'error')
         return redirect(url_for('preprocess', ticker=ticker))
 
     if len(df_full_preprocessed) < lookback_window:
@@ -780,14 +798,8 @@ def predict_future():
 
     FUTURE_PREDICTION_DAYS = config.DEFAULT_FUTURE_PREDICTION_DAYS 
 
-    # 1. Ambil lookback_window data TERAKHIR dari DataFrame yang sudah diproses
-    #    Ini akan menjadi input awal untuk prediksi masa depan.
     last_historical_data_for_sequence_df = df_full_preprocessed.iloc[-lookback_window:]
-    
-    # 2. Transformasi lookback_window data TERAKHIR ke skala (ini akan menjadi current_sequence awal)
     current_sequence_scaled = scaler.transform(last_historical_data_for_sequence_df[features_to_scale].values)
-    
-    # 3. Ambil baris data AKTUAL TERAKHIR dari DataFrame asli (original scale)
     last_actual_row_original = df_full_preprocessed.iloc[-1][features_to_scale].values.copy()
     
     adj_close_index = features_to_scale.index('Adj Close')
@@ -837,6 +849,30 @@ def predict_future():
         current_sequence = np.roll(current_sequence, -1, axis=0)
         current_sequence[-1] = next_input_row_scaled
 
+    # --- Bagian Baru: Simpan Prediksi Masa Depan ke Database ---
+    try:
+        # Hapus prediksi masa depan lama untuk model ini (jika ada)
+        FuturePrediction.query.filter_by(model_id=saved_model_entry.id).delete()
+        db.session.commit()
+        flash(f"Prediksi masa depan lama untuk model {os.path.basename(model_filepath)} telah dihapus.", 'info')
+
+        # Simpan prediksi masa depan yang baru
+        for i, pred_price in enumerate(future_predictions_original):
+            future_pred_detail = FuturePrediction(
+                model_id=saved_model_entry.id,
+                forecast_date=future_dates[i], # Pastikan ini objek date
+                predicted_price=float(f"{pred_price:.2f}") # Simpan sebagai float dengan 2 desimal
+            )
+            db.session.add(future_pred_detail)
+        db.session.commit()
+        flash(f"Prediksi masa depan untuk {config.DEFAULT_FUTURE_PREDICTION_DAYS} hari berhasil disimpan ke database.", 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f"Gagal menyimpan prediksi masa depan ke database: {e}", 'error')
+        print(f"ERROR: Gagal menyimpan prediksi masa depan ke database: {e}")
+        traceback.print_exc()
+
+    # Format hasil prediksi masa depan untuk ditampilkan di tabel
     future_predictions_formatted = []
     for i, pred_price in enumerate(future_predictions_original):
         future_predictions_formatted.append({
@@ -844,6 +880,7 @@ def predict_future():
             'Predicted Price': f"{pred_price:.2f}"
         })
 
+    # Data untuk grafik: historis dan prediksi future
     historical_for_chart_df = df_full_preprocessed.iloc[-lookback_window:] 
     
     historical_for_chart = []
@@ -864,10 +901,10 @@ def predict_future():
 
     return render_template('predict_future.html',
                            ticker=ticker,
-                           future_predictions=future_predictions_formatted, 
+                           future_predictions=future_predictions_formatted, # Untuk tabel
                            future_prediction_days=config.DEFAULT_FUTURE_PREDICTION_DAYS,
-                           historical_for_chart=historical_for_chart, 
-                           future_for_chart=future_for_chart)
+                           historical_for_chart=historical_for_chart, # Untuk grafik
+                           future_for_chart=future_for_chart) # Untuk grafik
     
 @app.route('/admin/models')
 @admin_required
@@ -922,8 +959,13 @@ def free_user_predict_view():
     model_id = request.args.get('model_id', type=int) 
 
     if not model_id:
-        flash("Pilih model prediksi dari daftar di bawah.", 'info')
-        return redirect(url_for('dashboard_user')) 
+        latest_model = SavedModel.query.filter_by(ticker=config.DEFAULT_TICKER).order_by(SavedModel.training_timestamp.desc()).first()
+        if latest_model:
+            model_id = latest_model.id
+            flash("Model terbaru dimuat secara otomatis.", 'info')
+        else:
+            flash("Pilih model prediksi dari daftar di bawah.", 'info')
+            return redirect(url_for('dashboard_user')) 
 
     saved_model = SavedModel.query.get(model_id)
 
@@ -931,33 +973,87 @@ def free_user_predict_view():
         flash("Model prediksi yang dipilih tidak ditemukan.", 'error')
         return redirect(url_for('dashboard_user'))
 
+    # --- Data untuk Grafik 1: Harga Aktual vs. Prediksi Historis ---
     prediction_details = PredictionDetail.query.filter_by(model_id=saved_model.id).order_by(PredictionDetail.prediction_date.asc()).all()
 
     if not prediction_details:
-        flash(f"Tidak ada detail prediksi untuk model ini ({saved_model.id}).", 'warning')
+        flash(f"Tidak ada detail prediksi historis untuk model ini ({saved_model.id}).", 'warning')
         return redirect(url_for('dashboard_user'))
 
-    prediction_results = [] 
-    full_prediction_data = [] 
+    prediction_results_historical_table = [] 
+    full_prediction_data_historical_chart = [] 
 
     for detail in prediction_details:
-        prediction_results.append({
+        prediction_results_historical_table.append({
             'Date': detail.prediction_date.strftime('%Y-%m-%d'),
             'True Price': f"{detail.true_price:.2f}",
             'Predicted Price': f"{detail.predicted_price:.2f}"
         })
-        full_prediction_data.append({
+        full_prediction_data_historical_chart.append({
             'Date': detail.prediction_date.strftime('%Y-%m-%d'),
             'True Price': detail.true_price,
             'Predicted Price': detail.predicted_price
         })
+    
+    # --- Data untuk Grafik 2: Prediksi Masa Depan ---
+    future_predictions_from_db = FuturePrediction.query.filter_by(model_id=saved_model.id).order_by(FuturePrediction.forecast_date.asc()).all()
 
+    historical_for_future_chart = []
+    future_for_future_chart = []
+    future_prediction_days = 0 
+
+    if future_predictions_from_db:
+        lookback_window = saved_model.lookback_window 
+        
+        # Ambil tanggal terakhir dari prediksi historis
+        last_prediction_date = prediction_details[-1].prediction_date if prediction_details else None
+
+        if last_prediction_date:
+            # Ambil data historis dari database untuk lookback window
+            # Ambil data sampai tanggal terakhir yang ada di PredictionDetail, karena grafik future dimulai setelah itu.
+            # Kita perlu {lookback_window} hari data historis sebelum tanggal prediksi pertama dari future_predictions_from_db
+            
+            # Jika ada future_predictions_from_db, ambil tanggal awalnya
+            first_future_date = future_predictions_from_db[0].forecast_date 
+            
+            # Ambil data historis tepat sebelum tanggal prediksi masa depan dimulai
+            # Ini akan menjadi titik awal garis historis untuk grafik future
+            stock_data_records = StockData.query.filter(
+                StockData.ticker == saved_model.ticker,
+                StockData.date < first_future_date
+            ).order_by(StockData.date.desc()).limit(lookback_window).all()
+            
+            # Balikkan urutan agar dari tanggal terlama ke terbaru
+            stock_data_records.reverse()
+
+            if len(stock_data_records) < lookback_window:
+                flash(f"Tidak cukup data historis yang tersedia di database ({len(stock_data_records)} hari) untuk lookback window ({lookback_window} hari) model ini. Grafik prediksi masa depan mungkin tidak lengkap.", 'warning')
+
+            for record in stock_data_records:
+                historical_for_future_chart.append({
+                    'Date': record.date.strftime('%Y-%m-%d'),
+                    'Price': record.adj_close_price
+                })
+        else:
+            flash("Tidak ada data historis yang ditemukan untuk menyiapkan grafik prediksi masa depan.", 'warning')
+
+
+        for detail in future_predictions_from_db:
+            future_for_future_chart.append({
+                'Date': detail.forecast_date.strftime('%Y-%m-%d'),
+                'Price': detail.predicted_price 
+            })
+        future_prediction_days = len(future_predictions_from_db)
+    else:
+        flash("Tidak ada prediksi masa depan yang disimpan untuk model ini.", 'info')
+
+    # Metrik diambil langsung dari SavedModel
     rmse = saved_model.rmse
     mae = saved_model.mae
     mape = saved_model.mape
 
-    display_results = prediction_results[-20:]
-    total_predictions = len(prediction_details)
+    display_results = prediction_results_historical_table[-20:]
+    total_predictions_historical = len(prediction_details)
 
     flash(f"Hasil prediksi untuk model {saved_model.ticker} (LR: {saved_model.learning_rate}, DO: {saved_model.dropout_rate}) dimuat.", 'success')
 
@@ -966,10 +1062,18 @@ def free_user_predict_view():
                            rmse=rmse,
                            mae=mae,
                            mape=mape,
-                           prediction_results=display_results,
-                           full_prediction_data=full_prediction_data,
-                           total_predictions=total_predictions,
-                           selected_model_text=saved_model.training_timestamp.strftime('%Y-%m-%d %H:%M'))
+                           prediction_results=display_results, 
+                           full_prediction_data=full_prediction_data_historical_chart,
+                           total_predictions=total_predictions_historical,
+                           selected_model_text=(
+                               f"{saved_model.ticker} - L{saved_model.lookback_window} HD{saved_model.hidden_dim} "
+                               f"LR{saved_model.learning_rate} DO{saved_model.dropout_rate} "
+                               f"(RMSE: {saved_model.rmse:.2f} MAPE: {saved_model.mape:.2f}%) "
+                               f"({saved_model.training_timestamp.strftime('%Y-%m-%d %H:%M')})"
+                           ),
+                           historical_for_future_chart=historical_for_future_chart,
+                           future_for_future_chart=future_for_future_chart,
+                           future_prediction_days=future_prediction_days)
 
 if __name__ == '__main__':
     with app.app_context():

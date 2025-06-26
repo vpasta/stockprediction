@@ -1,3 +1,5 @@
+# db_models.py
+
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import UniqueConstraint, ForeignKey
 from sqlalchemy.orm import relationship
@@ -20,17 +22,17 @@ class StockData(db.Model):
 
     def __repr__(self):
         return f'<StockData {self.ticker} - {self.date}>'
-    
+
 class User(db.Model):
     __tablename__ = 'users'
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
-    password_hash = db.Column(db.String(255), nullable=False) 
-    role = db.Column(db.String(20), nullable=False, default='free_user') 
+    password_hash = db.Column(db.String(255), nullable=False)
+    role = db.Column(db.String(20), nullable=False, default='free_user')
 
     def __repr__(self):
         return f'<User {self.username} ({self.role})>'
-    
+
 class SavedModel(db.Model):
     __tablename__ = 'saved_models'
     id = db.Column(db.Integer, primary_key=True)
@@ -43,10 +45,11 @@ class SavedModel(db.Model):
     rmse = db.Column(db.Float)
     mae = db.Column(db.Float)
     mape = db.Column(db.Float)
-    model_filepath = db.Column(db.String(255), nullable=False, unique=True) 
+    model_filepath = db.Column(db.String(255), nullable=False, unique=True)
     training_timestamp = db.Column(db.DateTime, default=db.func.current_timestamp())
     
     predictions = relationship('PredictionDetail', backref='saved_model', lazy=True, cascade="all, delete-orphan")
+    future_predictions = relationship('FuturePrediction', backref='saved_model_future', lazy=True, cascade="all, delete-orphan")
 
     def __repr__(self):
         return f'<SavedModel {self.ticker} L{self.lookback_window} LR{self.learning_rate} DO{self.dropout_rate}>'
@@ -55,7 +58,7 @@ class PredictionDetail(db.Model):
     __tablename__ = 'prediction_details'
     id = db.Column(db.Integer, primary_key=True)
     model_id = db.Column(db.Integer, ForeignKey('saved_models.id'), nullable=False)
-    prediction_date = db.Column(db.Date, nullable=False) 
+    prediction_date = db.Column(db.Date, nullable=False)
     true_price = db.Column(db.Float)
     predicted_price = db.Column(db.Float)
 
@@ -63,3 +66,15 @@ class PredictionDetail(db.Model):
 
     def __repr__(self):
         return f'<PredictionDetail ModelID:{self.model_id} Date:{self.prediction_date}>'
+
+class FuturePrediction(db.Model):
+    __tablename__ = 'future_predictions'
+    id = db.Column(db.Integer, primary_key=True)
+    model_id = db.Column(db.Integer, ForeignKey('saved_models.id'), nullable=False)
+    forecast_date = db.Column(db.Date, nullable=False)
+    predicted_price = db.Column(db.Float)
+
+    __table_args__ = (UniqueConstraint('model_id', 'forecast_date', name='_model_forecast_date_uc'),)
+
+    def __repr__(self):
+        return f'<FuturePrediction ModelID:{self.model_id} Date:{self.forecast_date}>'

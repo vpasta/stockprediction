@@ -4,7 +4,10 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Hasil Prediksi Saham TSLA (Pengguna)</title>
+    <!-- Impor Chart.js dan semua plugin yang dibutuhkan di HEAD -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@1.0.0"></script>
     <style>
       body {
         font-family: Arial, sans-serif;
@@ -17,11 +20,12 @@
         padding: 25px;
         border-radius: 8px;
         box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-        max-width: 900px;
+        max-width: 900px; /* Lebar yang lebih besar untuk grafik */
         margin: 30px auto;
       }
       h1,
-      h2 {
+      h2,
+      h4 {
         color: #0056b3;
         text-align: center;
         margin-bottom: 20px;
@@ -41,7 +45,7 @@
       .error {
         background-color: #f8d7da;
         color: #721c24;
-        border: 1px solid #f5c6cb;
+        border: 1px solid #f5c6fb;
       }
       .info {
         background-color: #d1ecf1;
@@ -90,21 +94,32 @@
       .prediction-table th {
         background-color: #f2f2f2;
       }
+      /* Gaya untuk container canvas, bukan canvas itu sendiri */
+      .chart-container {
+        width: 95%; /* Lebar responsif */
+        max-width: 800px; /* Batas lebar maksimum */
+        margin: auto; /* Pusatkan */
+        background-color: #fff;
+        padding: 15px;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        margin-bottom: 30px; /* Jarak antar chart/elemen lain */
+      }
+      /* Optional: Override default canvas style if needed */
       canvas {
         max-width: 100%;
         height: auto;
-        margin-top: 20px;
-        background-color: #fff;
-        border-radius: 8px;
-        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-        padding: 15px;
       }
     </style>
   </head>
   <body>
     <div class="container">
-      <h1>Hasil Prediksi Harga Saham {{ ticker }}</h1>
+      <h1>Hasil Prediksi Saham {{ ticker }}</h1>
       <p style="text-align: center">Selamat datang, {{ session.username }}!.</p>
+
+      <h4 style="text-align: center; color: #555">
+        Model yang dipilih: {{ selected_model_text }}
+      </h4>
 
       {% with messages = get_flashed_messages(with_categories=true) %} {% if
       messages %} {% for category, message in messages %}
@@ -112,10 +127,13 @@
       {% endfor %} {% endif %} {% endwith %}
 
       <div class="controls">
-        <a href="{{ url_for('dashboard_user') }}">Kembali</a>
+        <a href="{{ url_for('dashboard_user') }}" class="btn btn-secondary"
+          >Kembali ke Pemilihan Model</a
+        >
       </div>
 
       {% if rmse is not none %}
+      <!-- Metrik -->
       <div class="metric-display">
         Root Mean Squared Error (RMSE):
         <strong>{{ "%.4f"|format(rmse) }}</strong>
@@ -129,9 +147,36 @@
         <strong>{{ "%.2f"|format(mape) }}%</strong>
       </div>
 
-      <h2>Grafik Perbandingan Harga Aktual vs. Prediksi</h2>
-      <canvas id="predictionChart"></canvas>
+      <!-- Grafik 1: Harga Aktual vs. Prediksi Historis -->
+      <h2 class="mt-4 mb-3 text-center">
+        Grafik Perbandingan Harga Aktual vs. Prediksi Historis
+      </h2>
+      <div class="chart-container">
+        {% if full_prediction_data %}
+        <canvas id="historicalComparisonChart"></canvas>
+        {% else %}
+        <p class="text-center text-muted">
+          Tidak ada data historis untuk menampilkan grafik.
+        </p>
+        {% endif %}
+      </div>
 
+      <!-- Grafik 2: Prediksi Harga Historis (Lookback) dan Prediksi Masa Depan -->
+      <h2 class="mt-4 mb-3 text-center">
+        Grafik Harga Historis (Lookback) dan Prediksi Masa Depan ({{
+        future_prediction_days }} Hari)
+      </h2>
+      <div class="chart-container">
+        {% if historical_for_future_chart or future_for_future_chart %}
+        <canvas id="futurePredictionChart"></canvas>
+        {% else %}
+        <p class="text-center text-muted">
+          Tidak ada data untuk menampilkan grafik prediksi masa depan.
+        </p>
+        {% endif %}
+      </div>
+
+      <!-- Tabel Prediksi -->
       <h2>
         Prediksi (Total {{ total_predictions }} Data, Ditampilkan 20 Data
         Terakhir)
@@ -156,105 +201,161 @@
       </table>
 
       <script>
-        const predictionData = {{ full_prediction_data | tojson }};
+        const historicalComparisonData = {{ full_prediction_data | tojson }} || [];
 
-        const dates = predictionData.map((d) => d['Date']);
-        const truePrices = predictionData.map((d) => d['True Price']);
-        const predictedPrices = predictionData.map((d) => d['Predicted Price']);
+        if (historicalComparisonData.length > 0) {
+            const histCompDates = historicalComparisonData.map(d => d['Date']);
+            const histCompTruePrices = historicalComparisonData.map(d => d['True Price']);
+            const histCompPredictedPrices = historicalComparisonData.map(d => d['Predicted Price']);
 
-        const ctx = document.getElementById('predictionChart').getContext('2d');
-        const predictionChart = new Chart(ctx, {
-          type: 'line',
-          data: {
-            labels: dates,
-            datasets: [
-              {
-                label: 'Harga Aktual',
-                data: truePrices,
-                borderColor: 'rgb(75, 192, 192)',
-                tension: 0.1,
-                fill: false,
-                pointRadius: 0,
-              },
-              {
-                label: 'Harga Prediksi',
-                data: predictedPrices,
-                borderColor: 'rgb(255, 99, 132)',
-                tension: 0.1,
-                fill: false,
-                pointRadius: 0,
-              },
-            ],
-          },
-          options: {
-            responsive: true,
-            maintainAspectRatio: true,
-            scales: {
-              x: {
-                title: {
-                  display: true,
-                  text: 'Tanggal',
+            const histCompCtx = document.getElementById('historicalComparisonChart').getContext('2d');
+            new Chart(histCompCtx, {
+                type: 'line',
+                data: {
+                    labels: histCompDates,
+                    datasets: [
+                        {
+                            label: 'Harga Aktual',
+                            data: histCompTruePrices,
+                            borderColor: 'rgb(75, 192, 192)',
+                            tension: 0.1,
+                            fill: false,
+                            pointRadius: 0,
+                        },
+                        {
+                            label: 'Harga Prediksi',
+                            data: histCompPredictedPrices,
+                            borderColor: 'rgb(255, 99, 132)',
+                            tension: 0.1,
+                            fill: false,
+                            pointRadius: 0,
+                        },
+                    ],
                 },
-              },
-              y: {
-                title: {
-                  display: true,
-                  text: 'Harga Saham ($)',
-                },
-              },
-            },
-            plugins: {
-              title: {
-                display: true,
-                text: 'Perbandingan Harga Aktual vs. Prediksi',
-              },
-              tooltip: {
-                callbacks: {
-                  label: function (context) {
-                    let label = context.dataset.label || '';
-                    if (label) {
-                      label += ': ';
-                    }
-                    if (context.parsed.y !== null) {
-                      label += new Intl.NumberFormat('en-US', {
-                        style: 'currency',
-                        currency: 'USD',
-                      }).format(context.parsed.y);
-                    }
-                    return label;
-                  },
-                },
-              },
-            },
-            interaction: {
-                mode: 'index',
-                intersect: false,
-            },
-            plugins: {
-                zoom: {
-                    pan: {
-                        enabled: true,
-                        mode: 'x',
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    scales: {
+                        x: {
+                            title: { display: true, text: 'Tanggal' },
+                        },
+                        y: {
+                            title: { display: true, text: 'Harga Saham ($)' },
+                        },
                     },
-                    zoom: {
-                        wheel: {
-                            enabled: true,
+                    plugins: {
+                        title: { display: true, text: 'Perbandingan Harga Aktual vs. Prediksi Historis' },
+                        tooltip: {
+                            callbacks: {
+                                label: function (context) {
+                                    let label = context.dataset.label || '';
+                                    if (label) { label += ': '; }
+                                    if (context.parsed.y !== null) {
+                                        label += new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(context.parsed.y);
+                                    }
+                                    return label;
+                                },
+                            },
                         },
-                        pinch: {
-                            enabled: true,
-                        },
-                        mode: 'x',
-                    }
+                        zoom: { pan: { enabled: true, mode: 'x' }, zoom: { wheel: { enabled: true }, pinch: { enabled: true }, mode: 'x' } }
+                    },
+                    interaction: { mode: 'index', intersect: false }
+                },
+            });
+        }
+
+        // --- Skrip untuk Grafik 2: Prediksi Harga Historis (Lookback) dan Prediksi Masa Depan ---
+        const historicalForFutureChart = {{ historical_for_future_chart | tojson }} || [];
+        const futureForFutureChart = {{ future_for_future_chart | tojson }} || [];
+
+        if (historicalForFutureChart.length > 0 || futureForFutureChart.length > 0) {
+            let allFutureDatesSet = new Set(historicalForFutureChart.map(d => d.Date).concat(futureForFutureChart.map(d => d.Date)));
+            const allFutureDates = Array.from(allFutureDatesSet).sort((a, b) => new Date(a) - new Date(b));
+
+            const historicalPricesPlot = allFutureDates.map(date => {
+                const dataPoint = historicalForFutureChart.find(d => d.Date === date);
+                return dataPoint ? dataPoint.Price : NaN;
+            });
+
+            const predictedPricesPlot = allFutureDates.map(date => {
+                const dataPointFuture = futureForFutureChart.find(d => d.Date === date);
+                if (dataPointFuture) {
+                    return dataPointFuture.Price;
+                } else if (historicalForFutureChart.length > 0 && date === historicalForFutureChart[historicalForFutureChart.length - 1]?.Date) {
+                    return historicalForFutureChart[historicalForFutureChart.length - 1].Price;
                 }
-            }
-          },
-        });
+                return NaN;
+            });
+
+            const lastHistoricalDateForFutureChart = historicalForFutureChart.length > 0 ? historicalForFutureChart[historicalForFutureChart.length - 1].Date : null;
+
+            const futureCtx = document.getElementById('futurePredictionChart').getContext('2d'); // Pastikan ID Canvas benar di sini
+            new Chart(futureCtx, {
+                type: 'line',
+                data: {
+                    labels: allFutureDates,
+                    datasets: [
+                        {
+                            label: 'Data Historis',
+                            data: historicalPricesPlot,
+                            borderColor: 'rgb(54, 162, 235)',
+                            tension: 0.1,
+                            fill: false,
+                            pointRadius: 0,
+                            spanGaps: true,
+                        },
+                        {
+                            label: 'Prediksi Masa Depan',
+                            data: predictedPricesPlot,
+                            borderColor: 'rgb(255, 99, 132)',
+                            tension: 0.1,
+                            fill: false,
+                            pointRadius: 0,
+                            spanGaps: true,
+                        },
+                    ],
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    scales: {
+                        x: { title: { display: true, text: 'Tanggal' }, grid: { display: true } },
+                        y: { title: { display: true, text: 'Harga Saham ($)' }, grid: { display: true } },
+                    },
+                    plugins: {
+                        title: { display: true, text: 'Grafik Harga Historis (Lookback) dan Prediksi Masa Depan' },
+                        tooltip: {
+                            callbacks: {
+                                label: function (context) {
+                                    let label = context.dataset.label || '';
+                                    if (label) { label += ': '; }
+                                    if (context.parsed.y !== null) {
+                                        label += new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(context.parsed.y);
+                                    }
+                                    return label;
+                                },
+                            },
+                        },
+                        zoom: { pan: { enabled: true, mode: 'x' }, zoom: { wheel: { enabled: true }, pinch: { enabled: true }, mode: 'x' } },
+                        annotation: {
+                            annotations: {
+                                line1: {
+                                    type: 'line',
+                                    xMin: lastHistoricalDateForFutureChart,
+                                    xMax: lastHistoricalDateForFutureChart,
+                                    borderColor: 'rgb(75, 192, 192)',
+                                    borderWidth: 2,
+                                    borderDash: [5, 5],
+                                    label: { content: 'Akhir Data Historis', enabled: true, position: 'top', yAdjust: -10 }
+                                }
+                            }
+                        }
+                    },
+                    interaction: { mode: 'index', intersect: false }
+                },
+            });
+        }
       </script>
-      {% else %}
-      <p style="text-align: center; color: #555">
-        Data prediksi untuk TSLA belum tersedia atau belum diproses oleh
-        administrator.
-      </p>
       {% endif %}
     </div>
   </body>
