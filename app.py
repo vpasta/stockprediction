@@ -125,7 +125,7 @@ def logout():
 @app.route('/', methods=['GET', 'POST'])
 @admin_required
 def index():
-    default_ticker = config.DEFAULT_TICKER
+    default_ticker = session.get ('current_ticker', config.DEFAULT_TICKER)
     default_end_date = datetime.now().strftime('%Y-%m-%d')
     default_start_date = (datetime.now() - timedelta(days=365*5)).strftime('%Y-%m-%d')
 
@@ -136,6 +136,7 @@ def index():
 
     if request.method == 'POST':
         ticker = request.form.get('ticker', default_ticker).upper()
+        session['current_ticker'] = ticker
         start_date_str = request.form.get('start_date')
         end_date_str = request.form.get('end_date')
 
@@ -162,7 +163,6 @@ def index():
                                    default_learning_rate=default_learning_rate,
                                    default_dropout_rate=default_dropout_rate,
                                    default_patience=default_patience)
-
 
         try:
             start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date()
@@ -234,12 +234,12 @@ def index():
             data_yf.to_csv(file_path)
 
             flash(f"Data {ticker} berhasil diunduh dan {new_records_count} record baru disimpan ke database. File CSV juga disimpan sebagai {file_name}", 'success')
-            return render_template('index.html', downloaded_file=file_name, default_ticker=ticker, default_start_date=start_date_str, default_end_date=end_date_str,
+            return render_template('index.html', downloaded_file=file_name, default_ticker=default_ticker, default_start_date=start_date_str, default_end_date=end_date_str,
                                    default_epochs=epochs, default_learning_rate=learning_rate, default_dropout_rate=dropout_rate, default_patience=patience)
         except Exception as e:
             db.session.rollback()
             flash(f"Terjadi kesalahan saat mengambil atau menyimpan data: {e}. Coba lagi.", 'error')
-            return render_template('index.html', default_ticker=ticker, default_start_date=start_date_str, default_end_date=end_date_str,
+            return render_template('index.html', default_ticker=default_ticker, default_start_date=start_date_str, default_end_date=end_date_str,
                                    default_epochs=epochs, default_learning_rate=learning_rate, default_dropout_rate=dropout_rate, default_patience=patience)
 
     return render_template('index.html', 
@@ -259,7 +259,7 @@ def download_file(filename):
 @app.route('/preprocess', methods=['GET', 'POST'])
 @admin_required
 def preprocess():
-    ticker = request.args.get('ticker', config.DEFAULT_TICKER).upper()
+    ticker = session.get('current_ticker', config.DEFAULT_TICKER)
 
     stock_records = StockData.query.filter_by(ticker=ticker).order_by(StockData.date.asc()).all()
 
@@ -367,10 +367,10 @@ def preprocess():
         flash("Menginisialisasi model GRU baru (tidak ada di cache).", 'info')
 
     app.config['gru_model'] = gru_model
-    app.config[f'X_train_{ticker}'] = X_train_data
-    app.config[f'y_train_{ticker}'] = y_train_data
-    app.config[f'X_val_{ticker}'] = X_val_data
-    app.config[f'y_val_{ticker}'] = y_val_data
+    app.config['X_train'] = X_train_data
+    app.config['y_train'] = y_train_data
+    app.config['X_val'] = X_val_data
+    app.config['y_val'] = y_val_data
 
     app.config['lookback_window'] = LOOKBACK_WINDOW
     app.config['input_dim'] = INPUT_DIM
@@ -414,11 +414,11 @@ def preprocess():
 @app.route('/train', methods=['GET'])
 @admin_required
 def train_model():
-    ticker = config.DEFAULT_TICKER 
-    X_train = app.config.get(f'X_train_{ticker}')
-    y_train = app.config.get(f'y_train_{ticker}')
-    X_val = app.config.get(f'X_val_{ticker}')
-    y_val = app.config.get(f'y_val_{ticker}')
+    ticker = session.get('current_ticker', config.DEFAULT_TICKER) 
+    X_train = app.config.get('X_train')
+    y_train = app.config.get('y_train')
+    X_val = app.config.get('X_val')
+    y_val = app.config.get('y_val')
 
     gru_model = app.config.get('gru_model')
     scaler = app.config.get('scaler_all_features')
@@ -432,9 +432,8 @@ def train_model():
     DROPOUT_RATE = app.config.get('current_dropout_rate', config.DEFAULT_DROPOUT_RATE)
     EARLY_STOPPING_PATIENCE = app.config.get('current_patience', config.EARLY_STOPPING_PATIENCE)
 
-
     if X_train is None or y_train is None or X_val is None or y_val is None or gru_model is None or scaler is None:
-        flash("Data atau model belum disiapkan. Silakan kunjungi halaman preprocess terlebih dahulu.", 'error')
+        flash("Data atau model belum disiapkan. Silakan latih model terlebih dahulu.", 'error')
         return redirect(url_for('preprocess', ticker=ticker))
 
     if gru_model.hidden_dim != HIDDEN_DIM or \
@@ -606,13 +605,12 @@ def train_model():
                            val_losses=val_losses,
                            dropout_rate=DROPOUT_RATE)
 
-
 @app.route('/predict', methods=['GET'])
 @admin_required
 def predict_price():
-    ticker = config.DEFAULT_TICKER 
-    X_test_samples = app.config.get(f'X_val_{ticker}')
-    y_true_scaled_test = app.config.get(f'y_val_{ticker}')
+    ticker = session.get('current_ticker', config.DEFAULT_TICKER) 
+    X_test_samples = app.config.get('X_val')
+    y_true_scaled_test = app.config.get('y_val')
 
     gru_model = app.config.get('gru_model')
     scaler = app.config.get('scaler_all_features')
@@ -761,150 +759,183 @@ def predict_price():
                            full_prediction_data=full_prediction_data)
 
 @app.route('/predict_future', methods=['GET'])
-@admin_required 
+@admin_required
 def predict_future():
-    ticker = config.DEFAULT_TICKER
+    ticker = session.get('current_ticker', config.DEFAULT_TICKER)
     lookback_window = app.config.get('lookback_window', config.DEFAULT_LOOKBACK_WINDOW)
     gru_model = app.config.get('gru_model')
     scaler = app.config.get('scaler_all_features')
-    features_to_scale = app.config.get('features_to_scale') 
-    df_full_preprocessed = app.config.get('df_full_preprocessed') 
+    features_to_scale = app.config.get('features_to_scale')
+    df_full_preprocessed = app.config.get('df_full_preprocessed')
 
-    # --- Ambil parameter model yang digunakan dari app.config untuk menemukan SavedModel ---
+    # --- Pengambilan Parameter Model untuk mencari di DB (Tetap sama) ---
     HIDDEN_DIM = app.config.get('hidden_dim')
     INPUT_DIM = app.config.get('input_dim')
     LEARNING_RATE = app.config.get('learning_rate')
     DROPOUT_RATE = app.config.get('dropout_rate')
     
-    # Buat model_filepath untuk mencari SavedModel yang sesuai
     lr_str = str(LEARNING_RATE).replace('.', '')
     do_str = str(DROPOUT_RATE).replace('.', '')
     model_filepath = os.path.join(MODEL_DIR, f'GRU_weights_{ticker}_H{HIDDEN_DIM}_L{lookback_window}_F{INPUT_DIM}_LR{lr_str}_DO{do_str}.npz')
-
-    # Cari SavedModel yang relevan di database
     saved_model_entry = SavedModel.query.filter_by(model_filepath=model_filepath).first()
 
     if saved_model_entry is None:
-        flash("Tidak dapat menemukan model yang disimpan untuk konfigurasi ini. Pastikan model telah dilatih dan disimpan di halaman Prediksi Historis (Admin).", 'error')
-        return redirect(url_for('predict_price')) # Arahkan ke prediksi historis untuk menyimpan model dulu
+        flash("Model yang sesuai tidak ditemukan di database. Pastikan model telah dilatih dan disimpan.", 'error')
+        return redirect(url_for('predict_price'))
 
     if gru_model is None or scaler is None or df_full_preprocessed is None or features_to_scale is None:
-        flash("Data preprocessing atau model GRU tidak tersedia di sesi. Admin perlu mengunjungi halaman preprocess dan melatih model terlebih dahulu.", 'error')
+        flash("Data atau model tidak ada di sesi. Harap jalankan alur dari halaman Preprocessing.", 'error')
         return redirect(url_for('preprocess', ticker=ticker))
 
-    if len(df_full_preprocessed) < lookback_window:
-        flash(f"Tidak cukup data historis ({len(df_full_preprocessed)} hari). Diperlukan setidaknya {lookback_window} hari untuk lookback window.", 'error')
-        return redirect(url_for('index', ticker=ticker))
+    FUTURE_PREDICTION_DAYS = config.DEFAULT_FUTURE_PREDICTION_DAYS
+    N_PATHS = 50  # Jumlah simulasi Monte Carlo yang akan dijalankan
+    all_future_paths = [] # Untuk menyimpan semua kemungkinan jalur
 
-    FUTURE_PREDICTION_DAYS = config.DEFAULT_FUTURE_PREDICTION_DAYS 
+    # AKTIFKAN MODE TRAINING untuk mengaktifkan dropout saat prediksi
+    gru_model.set_training_mode(True)
 
-    last_historical_data_for_sequence_df = df_full_preprocessed.iloc[-lookback_window:]
-    current_sequence_scaled = scaler.transform(last_historical_data_for_sequence_df[features_to_scale].values)
-    last_actual_row_original = df_full_preprocessed.iloc[-1][features_to_scale].values.copy()
-    
     adj_close_index = features_to_scale.index('Adj Close')
 
-    future_predictions_original = [] 
-    future_dates = [] 
-    
-    current_sequence = current_sequence_scaled.copy() 
-
-    gru_model.set_training_mode(False) 
-
-    last_historical_date_obj = df_full_preprocessed.index[-1] 
-
-    for i in range(FUTURE_PREDICTION_DAYS):
-        next_prediction_date = last_historical_date_obj + timedelta(days=i + 1)
-        future_dates.append(next_prediction_date.strftime('%Y-%m-%d'))
-
-        input_for_prediction = current_sequence.reshape(1, lookback_window, len(features_to_scale))
-
-        predicted_scaled_adj_close = gru_model.forward(input_for_prediction)[0, 0]
-
-        dummy_row_for_inverse = np.zeros((1, len(features_to_scale)))
-        dummy_row_for_inverse[0, adj_close_index] = predicted_scaled_adj_close
-        predicted_original_adj_close = scaler.inverse_transform(dummy_row_for_inverse)[0, adj_close_index]
-        future_predictions_original.append(predicted_original_adj_close)
-
-        next_original_row_features = last_actual_row_original.copy() 
+    for _ in range(N_PATHS):
+        # Untuk setiap path, mulai lagi dengan data historis asli
+        temp_df = df_full_preprocessed.copy()
+        last_historical_date_obj = temp_df.index[-1]
         
-        next_original_row_features[adj_close_index] = predicted_original_adj_close
+        current_path_predictions = []
         
-        open_idx = features_to_scale.index('Open')
-        high_idx = features_to_scale.index('High')
-        low_idx = features_to_scale.index('Low')
-        close_idx = features_to_scale.index('Close')
+        for i in range(FUTURE_PREDICTION_DAYS):
+            last_sequence_data = temp_df.iloc[-lookback_window:]
+            last_sequence_scaled = scaler.transform(last_sequence_data[features_to_scale].values)
+            input_for_prediction = last_sequence_scaled.reshape(1, lookback_window, len(features_to_scale))
 
-        next_original_row_features[open_idx] = predicted_original_adj_close * (1 + np.random.uniform(-0.005, 0.005)) 
-        next_original_row_features[high_idx] = max(predicted_original_adj_close, predicted_original_adj_close * (1 + np.random.uniform(0.001, 0.01))) 
-        next_original_row_features[low_idx] = min(predicted_original_adj_close, predicted_original_adj_close * (1 - np.random.uniform(0.001, 0.01))) 
-        next_original_row_features[close_idx] = predicted_original_adj_close 
-        
-        volume_idx = features_to_scale.index('Volume')
-        next_original_row_features[volume_idx] = df_full_preprocessed.iloc[-1]['Volume'] * (1 + np.random.uniform(-0.1, 0.1))
-        next_original_row_features[volume_idx] = max(0, next_original_row_features[volume_idx])
+            predicted_scaled_adj_close = gru_model.forward(input_for_prediction)[0, 0]
+
+            dummy_row_for_inverse = np.zeros((1, len(features_to_scale)))
+            dummy_row_for_inverse[0, adj_close_index] = predicted_scaled_adj_close
+            predicted_original_adj_close = scaler.inverse_transform(dummy_row_for_inverse)[0, adj_close_index]
             
-        next_input_row_scaled = scaler.transform(next_original_row_features.reshape(1, -1))[0]
-        
-        current_sequence = np.roll(current_sequence, -1, axis=0)
-        current_sequence[-1] = next_input_row_scaled
+            current_path_predictions.append(predicted_original_adj_close)
+            
+            next_prediction_date = last_historical_date_obj + timedelta(days=i + 1)
+            
+            # Menggunakan logika "Suntikan Volatilitas" dengan ATR
+            last_atr = temp_df.iloc[-1].get('ATR', df_full_preprocessed['ATR'].mean())
+            random_volatility_factor = np.random.uniform(0.7, 1.3)
+            high_est = predicted_original_adj_close + (last_atr * random_volatility_factor)
+            low_est = predicted_original_adj_close - (last_atr * random_volatility_factor)
+            open_est = temp_df.iloc[-1]['Adj Close'] + (last_atr * np.random.uniform(-0.1, 0.1))
+            open_est = np.clip(open_est, low_est, high_est)
+            close_price = np.clip(predicted_original_adj_close, low_est, high_est)
 
-    # --- Bagian Baru: Simpan Prediksi Masa Depan ke Database ---
-    try:
-        # Hapus prediksi masa depan lama untuk model ini (jika ada)
-        FuturePrediction.query.filter_by(model_id=saved_model_entry.id).delete()
-        db.session.commit()
-        flash(f"Prediksi masa depan lama untuk model {os.path.basename(model_filepath)} telah dihapus.", 'info')
+            new_row = {
+                'Open': open_est, 'High': high_est, 'Low': low_est, 'Close': close_price, 
+                'Adj Close': close_price, 'Volume': temp_df.iloc[-1]['Volume'] * (1 + np.random.uniform(-0.2, 0.2))
+            }
+            new_row_df = pd.DataFrame([new_row], index=[next_prediction_date])
+            temp_df = pd.concat([temp_df, new_row_df])
+            temp_df = calculate_technical_indicators(temp_df)
 
-        # Simpan prediksi masa depan yang baru
-        for i, pred_price in enumerate(future_predictions_original):
-            future_pred_detail = FuturePrediction(
-                model_id=saved_model_entry.id,
-                forecast_date=future_dates[i], # Pastikan ini objek date
-                predicted_price=float(f"{pred_price:.2f}") # Simpan sebagai float dengan 2 desimal
-            )
-            db.session.add(future_pred_detail)
-        db.session.commit()
-        flash(f"Prediksi masa depan untuk {config.DEFAULT_FUTURE_PREDICTION_DAYS} hari berhasil disimpan ke database.", 'success')
-    except Exception as e:
-        db.session.rollback()
-        flash(f"Gagal menyimpan prediksi masa depan ke database: {e}", 'error')
-        print(f"ERROR: Gagal menyimpan prediksi masa depan ke database: {e}")
-        traceback.print_exc()
+        all_future_paths.append(current_path_predictions)
 
-    # Format hasil prediksi masa depan untuk ditampilkan di tabel
-    future_predictions_formatted = []
-    for i, pred_price in enumerate(future_predictions_original):
-        future_predictions_formatted.append({
-            'Date': future_dates[i],
-            'Predicted Price': f"{pred_price:.2f}"
-        })
-
-    # Data untuk grafik: historis dan prediksi future
-    historical_for_chart_df = df_full_preprocessed.iloc[-lookback_window:] 
+    # Matikan lagi mode training setelah selesai
+    gru_model.set_training_mode(False)
     
-    historical_for_chart = []
-    for date, row in historical_for_chart_df.iterrows():
-        historical_for_chart.append({
-            'Date': date.strftime('%Y-%m-%d'),
-            'Price': row['Adj Close'] 
-        })
+    # Proses data untuk dikirim ke template
+    future_dates = [(df_full_preprocessed.index[-1] + timedelta(days=i+1)).strftime('%Y-%m-%d') for i in range(FUTURE_PREDICTION_DAYS)]
+    avg_predictions = np.mean(all_future_paths, axis=0)
     
-    future_for_chart = []
-    for i, pred_price_orig in enumerate(future_predictions_original):
-        future_for_chart.append({
-            'Date': future_dates[i],
-            'Price': pred_price_orig 
-        })
+    future_predictions_formatted = [{'Date': future_dates[i], 'Predicted Price': f"{price:.2f}"} for i, price in enumerate(avg_predictions)]
 
-    flash(f"Prediksi harga saham {ticker} untuk {config.DEFAULT_FUTURE_PREDICTION_DAYS} hari ke depan berhasil dilakukan.", 'success')
+    historical_for_chart_df = df_full_preprocessed.iloc[-lookback_window:]
+    historical_for_chart = [{'Date': date.strftime('%Y-%m-%d'), 'Price': row['Adj Close']} for date, row in historical_for_chart_df.iterrows()]
+    
+    # Kirim semua path individual ke template untuk digambar
+    future_for_chart_all_paths = [path for path in all_future_paths]
 
     return render_template('predict_future.html',
                            ticker=ticker,
-                           future_predictions=future_predictions_formatted, # Untuk tabel
-                           future_prediction_days=config.DEFAULT_FUTURE_PREDICTION_DAYS,
-                           historical_for_chart=historical_for_chart, # Untuk grafik
-                           future_for_chart=future_for_chart) # Untuk grafik
+                           future_predictions=future_predictions_formatted,
+                           future_prediction_days=FUTURE_PREDICTION_DAYS,
+                           historical_for_chart=historical_for_chart,
+                           future_for_chart_all_paths=future_for_chart_all_paths,
+                           avg_predictions=list(avg_predictions))
+
+@app.route('/load_model/<int:model_id>')
+@admin_required
+def load_model(model_id):
+    """
+    Route ini memuat ulang state aplikasi (model, data, scaler) berdasarkan
+    model yang dipilih dari database, lalu mengarahkan ke halaman prediksi.
+    """
+    # 1. Ambil detail model yang tersimpan dari database
+    saved_model = SavedModel.query.get(model_id)
+    if not saved_model:
+        flash(f"Model dengan ID {model_id} tidak ditemukan.", 'error')
+        return redirect(url_for('admin_models_manage'))
+
+    try:
+        # 2. Muat instance model GRU dan set bobotnya dari file .npz
+        gru_model = GRU(
+            input_dim=saved_model.input_dim,
+            hidden_dim=saved_model.hidden_dim,
+            output_dim=1, # Output selalu 1 (harga)
+            dropout_rate=saved_model.dropout_rate
+        )
+        loaded_weights_data = np.load(saved_model.model_filepath)
+        loaded_weights = {key: loaded_weights_data[key] for key in loaded_weights_data}
+        gru_model.set_weights(loaded_weights)
+
+        # 3. Rekonstruksi data preprocessing (ini bagian paling penting)
+        # Kita harus mengulang proses preprocessing untuk mendapatkan scaler dan set validasi yang sama
+        stock_records = StockData.query.filter_by(ticker=saved_model.ticker).order_by(StockData.date.asc()).all()
+        df_list = [{'Date': r.date, 'Open': r.open_price, 'High': r.high_price, 'Low': r.low_price, 'Close': r.close_price, 'Adj Close': r.adj_close_price, 'Volume': r.volume} for r in stock_records]
+        df_full = pd.DataFrame(df_list).set_index('Date')
+
+        df_full_preprocessed = calculate_technical_indicators(df_full)
+
+        features_to_scale = ['Open', 'High', 'Low', 'Close', 'Adj Close', 'Volume', 'SMA_10', 'SMA_20', 'EMA_10', 'EMA_20', 'RSI', 'MACD', 'Signal_Line', 'MACD_Hist', 'ATR']
+        
+        # 4. Buat ulang scaler dan sequences
+        scaler = MinMaxScaler(feature_range=(0, 1))
+        scaled_data = scaler.fit_transform(df_full_preprocessed[features_to_scale])
+        
+        target_feature_index = features_to_scale.index('Adj Close')
+        X, y = create_sequences(scaled_data, saved_model.lookback_window, target_feature_index)
+
+        # 5. Lakukan split data untuk mendapatkan set validasi yang sama persis
+        train_size_sequences = int(X.shape[0] * config.DEFAULT_TRAIN_SPLIT_RATIO)
+        X_val_data = X[train_size_sequences:]
+        y_val_data = y[train_size_sequences:]
+
+        # 6. Simpan semua state yang dibutuhkan ke app.config dan session
+        session['current_ticker'] = saved_model.ticker
+        
+        app.config['gru_model'] = gru_model
+        app.config['scaler_all_features'] = scaler
+        app.config['df_full_preprocessed'] = df_full_preprocessed
+        app.config['features_to_scale'] = features_to_scale
+        
+        app.config['X_train'] = X[:train_size_sequences] # Simpan juga data train
+        app.config['y_train'] = y[:train_size_sequences]
+        app.config['X_val'] = X_val_data
+        app.config['y_val'] = y_val_data
+        
+        app.config['lookback_window'] = saved_model.lookback_window
+        app.config['hidden_dim'] = saved_model.hidden_dim
+        app.config['input_dim'] = saved_model.input_dim
+        app.config['learning_rate'] = saved_model.learning_rate
+        app.config['dropout_rate'] = saved_model.dropout_rate
+        app.config['train_size_sequences'] = train_size_sequences
+        
+        flash(f"Model ID {model_id} untuk ticker {saved_model.ticker} berhasil dimuat. Sekarang Anda bisa melihat hasil prediksinya.", 'success')
+
+        # 7. Arahkan pengguna ke halaman prediksi untuk langsung melihat hasilnya
+        return redirect(url_for('predict_price'))
+
+    except Exception as e:
+        flash(f"Terjadi kesalahan saat memuat model: {e}", 'error')
+        traceback.print_exc()
+        return redirect(url_for('admin_models_manage'))
     
 @app.route('/admin/models')
 @admin_required
@@ -934,38 +965,65 @@ def admin_dashboard():
                            latest_models=latest_models)
     
 @app.route('/dashboard_user')
-@login_required 
+@login_required
 def dashboard_user():
-    available_models = SavedModel.query.filter_by(ticker=config.DEFAULT_TICKER).order_by(SavedModel.training_timestamp.desc()).all()
+    all_saved_models = SavedModel.query.order_by(SavedModel.training_timestamp.desc()).all()
     
-    model_choices = []
-    if available_models:
-        for model in available_models:
-            choice_text = (
-                f"TSLA - L{model.lookback_window} HD{model.hidden_dim} "
-                f"LR{model.learning_rate} DO{model.dropout_rate} "
-                f"(RMSE: {model.rmse:.2f} MAPE: {model.mape:.2f}%) - {model.training_timestamp.strftime('%Y-%m-%d %H:%M')}"
-            )
-            model_choices.append({'id': model.id, 'text': choice_text})
-    else:
-        flash("Belum ada model prediksi TSLA yang tersedia di database.", 'info')
+    models_by_ticker_objects = {}
+    for model in all_saved_models:
+        if model.ticker not in models_by_ticker_objects:
+            models_by_ticker_objects[model.ticker] = []
+        models_by_ticker_objects[model.ticker].append(model)
+        
+    serializable_models_by_ticker = {}
+    
+    for ticker, models_list in models_by_ticker_objects.items():
+        serializable_models_by_ticker[ticker] = []
+        for model in models_list:
+            model_dict = {
+                "id": model.id,
+                "lookback_window": model.lookback_window,
+                "hidden_dim": model.hidden_dim,
+                "learning_rate": model.learning_rate,
+                "dropout_rate": model.dropout_rate,
+                "rmse": model.rmse,
+                "training_timestamp": model.training_timestamp.isoformat()
+            }
+            serializable_models_by_ticker[ticker].append(model_dict)
 
-    flash("Selamat datang di Dashboard Pengguna! Pilih model prediksi yang ingin Anda lihat.", 'info')
-    return render_template('user_dashboard.html', model_choices=model_choices)
+    logo_map = {
+        'TSLA': 'https://logo.clearbit.com/tesla.com',
+        'MSFT': 'https://logo.clearbit.com/microsoft.com',
+        'AAPL': 'https://logo.clearbit.com/apple.com',
+        'GOOGL': 'https://logo.clearbit.com/google.com',
+        'AMZN': 'https://logo.clearbit.com/amazon.com'
+    }
+
+    default_logo_url = 'https://via.placeholder.com/60/1e2a3b/FFFFFF?text=?'
+    
+    ticker_logos = {
+        ticker: logo_map.get(ticker, default_logo_url)
+        for ticker in serializable_models_by_ticker.keys()
+    }
+
+    return render_template('user_dashboard.html',
+                           models_by_ticker=serializable_models_by_ticker,
+                           ticker_logos=ticker_logos)
 
 @app.route('/free_user_predict_view', methods=['GET'])
 @login_required
 def free_user_predict_view():
-    model_id = request.args.get('model_id', type=int) 
+    model_id = request.args.get('model_id', type=int)
 
     if not model_id:
+        # Logika untuk memuat model terbaru jika tidak ada ID yang dipilih
         latest_model = SavedModel.query.filter_by(ticker=config.DEFAULT_TICKER).order_by(SavedModel.training_timestamp.desc()).first()
         if latest_model:
             model_id = latest_model.id
-            flash("Model terbaru dimuat secara otomatis.", 'info')
+            flash("Tidak ada model yang dipilih, memuat hasil dari model terbaru secara otomatis.", 'info')
         else:
-            flash("Pilih model prediksi dari daftar di bawah.", 'info')
-            return redirect(url_for('dashboard_user')) 
+            flash("Belum ada model yang tersedia. Silakan hubungi admin.", 'error')
+            return redirect(url_for('dashboard_user'))
 
     saved_model = SavedModel.query.get(model_id)
 
@@ -973,107 +1031,106 @@ def free_user_predict_view():
         flash("Model prediksi yang dipilih tidak ditemukan.", 'error')
         return redirect(url_for('dashboard_user'))
 
-    # --- Data untuk Grafik 1: Harga Aktual vs. Prediksi Historis ---
+    # --- 1. Data untuk Grafik Historis (Aktual vs. Prediksi) ---
     prediction_details = PredictionDetail.query.filter_by(model_id=saved_model.id).order_by(PredictionDetail.prediction_date.asc()).all()
-
+    
     if not prediction_details:
-        flash(f"Tidak ada detail prediksi historis untuk model ini ({saved_model.id}).", 'warning')
+        flash(f"Tidak ada detail prediksi historis untuk model ini ({saved_model.id}). Tidak dapat menampilkan hasil.", 'warning')
         return redirect(url_for('dashboard_user'))
 
-    prediction_results_historical_table = [] 
-    full_prediction_data_historical_chart = [] 
+    full_prediction_data_historical_chart = [
+        {'Date': detail.prediction_date.strftime('%Y-%m-%d'), 'True Price': detail.true_price, 'Predicted Price': detail.predicted_price}
+        for detail in prediction_details
+    ]
+    prediction_results_historical_table = [{'Date': d['Date'], 'True Price': f"{d['True Price']:.2f}", 'Predicted Price': f"{d['Predicted Price']:.2f}"} for d in full_prediction_data_historical_chart]
 
-    for detail in prediction_details:
-        prediction_results_historical_table.append({
-            'Date': detail.prediction_date.strftime('%Y-%m-%d'),
-            'True Price': f"{detail.true_price:.2f}",
-            'Predicted Price': f"{detail.predicted_price:.2f}"
-        })
-        full_prediction_data_historical_chart.append({
-            'Date': detail.prediction_date.strftime('%Y-%m-%d'),
-            'True Price': detail.true_price,
-            'Predicted Price': detail.predicted_price
-        })
+    # --- 2. Persiapan untuk Simulasi Prediksi Masa Depan (Monte Carlo) ---
     
-    # --- Data untuk Grafik 2: Prediksi Masa Depan ---
-    future_predictions_from_db = FuturePrediction.query.filter_by(model_id=saved_model.id).order_by(FuturePrediction.forecast_date.asc()).all()
+    # a. Muat instance model GRU dan bobotnya dari file
+    try:
+        gru_model = GRU(input_dim=saved_model.input_dim, hidden_dim=saved_model.hidden_dim, output_dim=1, dropout_rate=saved_model.dropout_rate)
+        loaded_weights_data = np.load(saved_model.model_filepath)
+        loaded_weights = {key: loaded_weights_data[key] for key in loaded_weights_data}
+        gru_model.set_weights(loaded_weights)
+    except Exception as e:
+        flash(f"Gagal memuat file model fisik ({os.path.basename(saved_model.model_filepath)}): {e}", 'error')
+        return redirect(url_for('dashboard_user'))
 
-    historical_for_future_chart = []
-    future_for_future_chart = []
-    future_prediction_days = 0 
+    # b. Rekonstruksi data historis hingga tanggal prediksi terakhir
+    last_prediction_date = prediction_details[-1].prediction_date
+    stock_records_for_sim = StockData.query.filter(StockData.ticker == saved_model.ticker, StockData.date <= last_prediction_date).order_by(StockData.date.asc()).all()
+    
+    df_for_sim = pd.DataFrame([
+        {'Date': r.date, 'Open': r.open_price, 'High': r.high_price, 'Low': r.low_price, 'Close': r.close_price, 'Adj Close': r.adj_close_price, 'Volume': r.volume}
+        for r in stock_records_for_sim
+    ]).set_index('Date')
 
-    if future_predictions_from_db:
-        lookback_window = saved_model.lookback_window 
-        
-        # Ambil tanggal terakhir dari prediksi historis
-        last_prediction_date = prediction_details[-1].prediction_date if prediction_details else None
+    df_for_sim = calculate_technical_indicators(df_for_sim)
+    
+    features_to_scale = ['Open', 'High', 'Low', 'Close', 'Adj Close', 'Volume', 'SMA_10', 'SMA_20', 'EMA_10', 'EMA_20', 'RSI', 'MACD', 'Signal_Line', 'MACD_Hist', 'ATR']
+    
+    # c. Buat dan fit scaler baru berdasarkan data historis yang relevan
+    scaler = MinMaxScaler(feature_range=(0, 1))
+    scaler.fit(df_for_sim[features_to_scale].values)
 
-        if last_prediction_date:
-            # Ambil data historis dari database untuk lookback window
-            # Ambil data sampai tanggal terakhir yang ada di PredictionDetail, karena grafik future dimulai setelah itu.
-            # Kita perlu {lookback_window} hari data historis sebelum tanggal prediksi pertama dari future_predictions_from_db
+    # d. Jalankan simulasi Monte Carlo
+    FUTURE_PREDICTION_DAYS = config.DEFAULT_FUTURE_PREDICTION_DAYS
+    N_PATHS = 50
+    all_future_paths = []
+
+    gru_model.set_training_mode(True) # Aktifkan dropout
+    adj_close_index = features_to_scale.index('Adj Close')
+
+    for _ in range(N_PATHS):
+        temp_df = df_for_sim.copy()
+        last_historical_date_obj = temp_df.index[-1]
+        current_path_predictions = []
+
+        for i in range(FUTURE_PREDICTION_DAYS):
+            last_sequence_data = temp_df.iloc[-saved_model.lookback_window:]
+            last_sequence_scaled = scaler.transform(last_sequence_data[features_to_scale].values)
+            input_for_prediction = last_sequence_scaled.reshape(1, saved_model.lookback_window, len(features_to_scale))
+
+            predicted_scaled = gru_model.forward(input_for_prediction)[0, 0]
+            dummy_row = np.zeros((1, len(features_to_scale))); dummy_row[0, adj_close_index] = predicted_scaled
+            predicted_original = scaler.inverse_transform(dummy_row)[0, adj_close_index]
+            current_path_predictions.append(predicted_original)
+
+            next_date = last_historical_date_obj + timedelta(days=i + 1)
+            last_atr = temp_df.iloc[-1].get('ATR', df_for_sim['ATR'].mean())
+            high_est = predicted_original + (last_atr * np.random.uniform(0.7, 1.3))
+            low_est = predicted_original - (last_atr * np.random.uniform(0.7, 1.3))
+            new_row = {'Open': temp_df.iloc[-1]['Adj Close'], 'High': high_est, 'Low': low_est, 'Close': predicted_original, 'Adj Close': predicted_original, 'Volume': temp_df.iloc[-1]['Volume'] * np.random.uniform(0.8, 1.2)}
             
-            # Jika ada future_predictions_from_db, ambil tanggal awalnya
-            first_future_date = future_predictions_from_db[0].forecast_date 
-            
-            # Ambil data historis tepat sebelum tanggal prediksi masa depan dimulai
-            # Ini akan menjadi titik awal garis historis untuk grafik future
-            stock_data_records = StockData.query.filter(
-                StockData.ticker == saved_model.ticker,
-                StockData.date < first_future_date
-            ).order_by(StockData.date.desc()).limit(lookback_window).all()
-            
-            # Balikkan urutan agar dari tanggal terlama ke terbaru
-            stock_data_records.reverse()
+            temp_df = pd.concat([temp_df, pd.DataFrame([new_row], index=[next_date])])
+            temp_df = calculate_technical_indicators(temp_df)
 
-            if len(stock_data_records) < lookback_window:
-                flash(f"Tidak cukup data historis yang tersedia di database ({len(stock_data_records)} hari) untuk lookback window ({lookback_window} hari) model ini. Grafik prediksi masa depan mungkin tidak lengkap.", 'warning')
+        all_future_paths.append(current_path_predictions)
 
-            for record in stock_data_records:
-                historical_for_future_chart.append({
-                    'Date': record.date.strftime('%Y-%m-%d'),
-                    'Price': record.adj_close_price
-                })
-        else:
-            flash("Tidak ada data historis yang ditemukan untuk menyiapkan grafik prediksi masa depan.", 'warning')
+    gru_model.set_training_mode(False) # Matikan lagi dropout
 
+    # e. Siapkan data untuk dikirim ke template
+    avg_predictions = np.mean(all_future_paths, axis=0)
+    
+    historical_for_future_chart_df = df_for_sim.iloc[-saved_model.lookback_window:]
+    historical_for_future_chart = [{'Date': date.strftime('%Y-%m-%d'), 'Price': row['Adj Close']} for date, row in historical_for_future_chart_df.iterrows()]
 
-        for detail in future_predictions_from_db:
-            future_for_future_chart.append({
-                'Date': detail.forecast_date.strftime('%Y-%m-%d'),
-                'Price': detail.predicted_price 
-            })
-        future_prediction_days = len(future_predictions_from_db)
-    else:
-        flash("Tidak ada prediksi masa depan yang disimpan untuk model ini.", 'info')
-
-    # Metrik diambil langsung dari SavedModel
-    rmse = saved_model.rmse
-    mae = saved_model.mae
-    mape = saved_model.mape
-
-    display_results = prediction_results_historical_table[-20:]
-    total_predictions_historical = len(prediction_details)
-
-    flash(f"Hasil prediksi untuk model {saved_model.ticker} (LR: {saved_model.learning_rate}, DO: {saved_model.dropout_rate}) dimuat.", 'success')
+    flash(f"Hasil prediksi untuk model {saved_model.id} berhasil dimuat dan disimulasikan.", 'success')
 
     return render_template('free_user_predict.html',
                            ticker=saved_model.ticker,
-                           rmse=rmse,
-                           mae=mae,
-                           mape=mape,
-                           prediction_results=display_results, 
+                           rmse=saved_model.rmse,
+                           mae=saved_model.mae,
+                           mape=saved_model.mape,
+                           prediction_results=prediction_results_historical_table[-20:],
+                           total_predictions=len(prediction_details),
                            full_prediction_data=full_prediction_data_historical_chart,
-                           total_predictions=total_predictions_historical,
-                           selected_model_text=(
-                               f"{saved_model.ticker} - L{saved_model.lookback_window} HD{saved_model.hidden_dim} "
-                               f"LR{saved_model.learning_rate} DO{saved_model.dropout_rate} "
-                               f"(RMSE: {saved_model.rmse:.2f} MAPE: {saved_model.mape:.2f}%) "
-                               f"({saved_model.training_timestamp.strftime('%Y-%m-%d %H:%M')})"
-                           ),
+                           selected_model_text=(f"{saved_model.ticker} - L{saved_model.lookback_window} HD{saved_model.hidden_dim} LR{saved_model.learning_rate} DO{saved_model.dropout_rate}"),
                            historical_for_future_chart=historical_for_future_chart,
-                           future_for_future_chart=future_for_future_chart,
-                           future_prediction_days=future_prediction_days)
+                           future_for_chart_all_paths=all_future_paths,
+                           avg_predictions=list(avg_predictions),
+                           future_prediction_days=FUTURE_PREDICTION_DAYS
+                           )
 
 if __name__ == '__main__':
     with app.app_context():

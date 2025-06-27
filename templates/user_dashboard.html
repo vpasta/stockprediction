@@ -3,132 +3,210 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Dashboard Pengguna - Prediksi Saham</title>
+    <title>Dashboard - Prediksi Saham</title>
     <style>
+      @import url("https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap");
+
       body {
-        font-family: Arial, sans-serif;
-        margin: 20px;
-        background-color: #f4f4f4;
+        font-family: "Poppins", sans-serif;
+        background: linear-gradient(135deg, #d0f1ff, #f9fcff);
         color: #333;
+        margin: 0;
       }
-      .container {
-        background-color: #fff;
-        padding: 25px;
-        border-radius: 8px;
-        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-        max-width: 600px;
-        margin: 50px auto;
-        text-align: center;
+      .top-bar {
+        background-color: #ffffff;
+        padding: 15px 40px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        width: 100%;
+        box-sizing: border-box;
       }
-      h1 {
-        color: #0056b3;
-        margin-bottom: 25px;
+      .top-bar .welcome-message {
+        font-size: 1.1em;
+        color: #1e2a3b;
+        font-weight: 600;
       }
-      .message {
-        padding: 10px;
-        margin-top: 20px;
-        margin-bottom: 20px;
-        border-radius: 4px;
-        text-align: center;
-      }
-      .success {
-        background-color: #d4edda;
-        color: #155724;
-        border: 1px solid #c3e6cb;
-      }
-      .error {
-        background-color: #f8d7da;
-        color: #721c24;
-        border: 1px solid #f5c6cb;
-      }
-      .info {
-        background-color: #d1ecf1;
-        color: #0c5460;
-        border: 1px solid #bee5eb;
-      }
-      .controls {
-        margin-top: 20px;
-        margin-bottom: 20px;
-      }
-      .controls a,
-      .controls button,
-      .controls select {
-        padding: 10px 15px;
-        border-radius: 4px;
-        font-size: 16px;
-        margin: 0 5px;
-        display: inline-block;
-      }
-      .controls a {
-        background-color: #dc3545; /* Merah untuk logout */
+      .top-bar .logout-button {
+        padding: 8px 18px;
+        background-color: #f28b82;
         color: white;
         text-decoration: none;
-        border: none;
+        border-radius: 8px;
+        font-weight: 400;
+        transition: background-color 0.3s ease;
+      }
+      .top-bar .logout-button:hover {
+        background-color: #5a6268;
+      }
+      .main-container {
+        padding: 40px;
+        width: 100%;
+        max-width: 900px;
+        margin: 0 auto;
+        box-sizing: border-box;
+      }
+      .main-container h2,
+      .main-container p {
+        text-align: center;
+      }
+      .ticker-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+        gap: 25px;
+        margin-top: 30px;
+      }
+
+      .ticker-card {
+        background-color: #fff;
+        border-radius: 12px;
+        padding: 20px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
         cursor: pointer;
+        transition: transform 0.3s ease, box-shadow 0.3s ease;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 15px;
+        border: 1px solid transparent;
       }
-      .controls a:hover {
-        background-color: #c82333;
+
+      .ticker-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
+        border-color: #0d6efd;
       }
-      .controls select {
-        width: 80%; /* Lebar dropdown */
-        max-width: 400px;
-        border: 1px solid #ddd;
-        background-color: white;
-        cursor: pointer;
+
+      .ticker-logo {
+        width: 60px;
+        height: 60px;
+        object-fit: contain;
       }
-      .controls button {
-        background-color: #28a745; /* Hijau untuk Lihat Prediksi */
-        color: white;
-        border: none;
-        cursor: pointer;
+
+      .ticker-name {
+        font-size: 1.5em;
+        font-weight: 600;
+        color: #1e2a3b;
       }
-      .controls button:hover {
-        background-color: #218838;
+
+      .model-count {
+        font-size: 0.9em;
+        color: #6c757d;
+        background-color: #e9ecef;
+        padding: 3px 8px;
+        border-radius: 20px;
+      }
+
+      #model-selection-area {
+        margin-top: 40px;
+        padding: 20px;
+        background-color: #fff;
+        border-radius: 12px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+        text-align: left;
+        display: none; /* Awalnya disembunyikan */
+      }
+
+      #model-selection-area h3 {
+        margin-top: 0;
+        color: #1e2a3b;
+        border-bottom: 1px solid #eee;
+        padding-bottom: 10px;
+      }
+
+      .model-choice {
+        list-style: none;
+        padding: 0;
+      }
+      .model-choice li a {
+        display: block;
+        padding: 12px 15px;
+        text-decoration: none;
+        color: #333;
+        border-radius: 8px;
+        margin-bottom: 8px;
+        transition: background-color 0.2s ease, border-left 0.2s ease;
+        border-left: 3px solid transparent;
+      }
+      .model-choice li a:hover {
+        background-color: #f0f2f5;
+        border-left: 3px solid #0d6efd;
       }
     </style>
   </head>
   <body>
-    <div class="container">
-      <h1>Selamat Datang di Dashboard Pengguna!</h1>
-      <p>Halo, {{ session.username }}!.</p>
-
-      {% with messages = get_flashed_messages(with_categories=true) %} {% if
-      messages %} {% for category, message in messages %}
-      <div class="message {{ category }}">{{ message }}</div>
-      {% endfor %} {% endif %} {% endwith %}
-
-      <h2>Lihat Hasil Prediksi Saham</h2>
-      <form
-        action="{{ url_for('free_user_predict_view') }}"
-        method="GET"
-        class="controls"
-      >
-        {% if model_choices %}
-        <label for="model_select">Pilih Model Prediksi:</label>
-        <select id="model_select" name="model_id" required>
-          <option value="">-- Pilih Model --</option>
-          {% for choice in model_choices %}
-          <option value="{{ choice.id }}">{{ choice.text }}</option>
-          {% endfor %}
-        </select>
-        <p>
-          <strong>Catatan:</strong> Hanya model yang sudah selesai pelatihan
-          yang akan ditampilkan di sini.
-          <br />
-          <br />
-          <button type="submit">Lihat Prediksi</button>
-          {% else %}
-        </p>
-
-        <p>
-          Belum ada model prediksi TSLA yang tersedia di database. Silakan
-          hubungi administrator.
-        </p>
-        {% endif %}
-        <div class="controls">
-          <a href="{{ url_for('logout') }}">Logout</a>
-        </div>
-      </form>
+    <div class="top-bar">
+      <div class="welcome-message">Selamat Datang, {{ session.username }}!</div>
+      <a href="{{ url_for('logout') }}" class="logout-button">Logout</a>
     </div>
+
+    <div class="main-container">
+      <h2>Pilih Saham</h2>
+      <p>Silakan pilih saham yang ingin Anda lihat hasil prediksinya.</p>
+
+      {% if models_by_ticker %}
+      <div class="ticker-grid">
+        {% for ticker, models in models_by_ticker.items() %}
+        <div class="ticker-card" data-ticker="{{ ticker }}">
+          <img
+            src="{{ ticker_logos.get(ticker) }}"
+            alt="Logo {{ ticker }}"
+            class="ticker-logo"
+          />
+          <span class="ticker-name">{{ ticker }}</span>
+          <span class="model-count">{{ models|length }} Model Tersedia</span>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <p>
+        Belum ada model prediksi yang tersedia. Silakan hubungi administrator.
+      </p>
+      {% endif %}
+
+      <div id="model-selection-area"></div>
+    </div>
+
+    <script>
+      // JavaScript Anda dari sebelumnya tidak perlu diubah, jadi kita letakkan di sini.
+      const modelsByTicker = {{ models_by_ticker | tojson | safe }};
+
+      document.querySelectorAll('.ticker-card').forEach(card => {
+          card.addEventListener('click', function() {
+              const ticker = this.dataset.ticker;
+              const models = modelsByTicker[ticker];
+              const modelSelectionArea = document.getElementById('model-selection-area');
+
+              modelSelectionArea.style.display = 'none';
+              modelSelectionArea.innerHTML = '';
+
+              if (models.length === 1) {
+                  const modelId = models[0].id;
+                  window.location.href = `/free_user_predict_view?model_id=${modelId}`;
+              }
+              else if (models.length > 1) {
+                  let choicesHtml = `<h3>Pilih Versi Model untuk ${ticker}</h3><ul class="model-choice">`;
+                  models.forEach(model => {
+                      const modelText = `L:${model.lookback_window} H:${model.hidden_dim} LR:${model.learning_rate.toFixed(4)} DO:${model.dropout_rate.toFixed(2)} | RMSE: ${model.rmse.toFixed(2)}`;
+                      const trainingDate = new Date(model.training_timestamp).toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' });
+                      choicesHtml += `
+                          <li>
+                              <a href="/free_user_predict_view?model_id=${model.id}">
+                                  <strong>Dilatih pada: ${trainingDate}</strong><br>
+                                  <small>${modelText}</small>
+                              </a>
+                          </li>
+                      `;
+                  });
+                  choicesHtml += '</ul>';
+                  modelSelectionArea.innerHTML = choicesHtml;
+                  modelSelectionArea.style.display = 'block';
+                  modelSelectionArea.scrollIntoView({ behavior: 'smooth', block: 'start' });
+              }
+          });
+      });
+    </script>
   </body>
 </html>

@@ -23,7 +23,13 @@
 <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
 {% endblock %} {% block body_content %}
 <div class="wrapper">
-  <!-- Navbar -->
+  <div id="loading-overlay" style="display: none">
+    <div class="spinner"></div>
+    <p>
+      Sedang melatih model... <br />
+      Proses ini mungkin memakan waktu beberapa menit. Mohon tunggu.
+    </p>
+  </div>
   <nav class="main-header navbar navbar-expand navbar-white navbar-light">
     <!-- Left navbar links -->
     <ul class="navbar-nav">
@@ -33,7 +39,7 @@
         ></a>
       </li>
       <li class="nav-item d-none d-sm-inline-block">
-        <a href="{{ url_for('index') }}" class="nav-link">Home Admin</a>
+        <a href="{{ url_for('admin_dashboard') }}" class="nav-link">Home Admin</a>
       </li>
       <li class="nav-item d-none d-sm-inline-block">
         <a href="{{ url_for('logout') }}" class="nav-link">Logout</a>

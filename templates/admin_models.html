@@ -19,10 +19,7 @@ block content %}
           <th>MAE</th>
           <th>MAPE (%)</th>
           <th>Tanggal Pelatihan</th>
-          <th>File Model</th>
-          {#
           <th>Aksi</th>
-          #}
         </tr>
       </thead>
       <tbody>
@@ -38,12 +35,14 @@ block content %}
           <td>{{ "%.4f"|format(model.mae) }}</td>
           <td>{{ "%.2f"|format(model.mape) }}</td>
           <td>{{ model.training_timestamp.strftime('%Y-%m-%d %H:%M') }}</td>
-          <td>{{ model.model_filepath.split('/')[-1].split('\\')[-1] }}</td>
-          {#
           <td>
-            <a href="#" class="btn btn-sm btn-danger">Hapus</a>
+            <a
+              href="{{ url_for('load_model', model_id=model.id) }}"
+              class="btn btn-sm btn-primary"
+            >
+              <i class="fas fa-cogs"></i> Muat Model
+            </a>
           </td>
-          #}
         </tr>
         {% else %}
         <tr>

@@ -8,7 +8,10 @@ endblock %} {% block page_title %} Preprocessing Data Saham {{ current_ticker }}
   </div>
   <div class="card-body text-center">
     {% if show_preprocess_results %}
-    <a href="{{ url_for('train_model') }}" class="btn btn-info mr-2"
+    <a
+      href="{{ url_for('train_model') }}"
+      class="btn btn-info mr-2"
+      id="train-model-button"
       >Latih Model</a
     >
     {% if model_loaded_from_cache %}
@@ -31,7 +34,7 @@ endblock %} {% block page_title %} Preprocessing Data Saham {{ current_ticker }}
 {% if show_preprocess_results %}
 <div class="card mt-4">
   <div class="card-header">
-    <h3 class="card-title">Ringkasan Pra-pemrosesan</h3>
+    <h3 class="card-title">Ringkasan Preprocessing</h3>
   </div>
   <div class="card-body">
     <ul class="list-group list-group-unbordered mb-3">
@@ -49,6 +52,10 @@ endblock %} {% block page_title %} Preprocessing Data Saham {{ current_ticker }}
       </li>
       <li class="list-group-item">
         <b>Hidden Dim GRU:</b> <span class="float-right">{{ hidden_dim }}</span>
+      </li>
+      <li class="list-group-item">
+        <b>Learning Rate</b>
+        <span class="float-right">{{ learning_rate }}</span>
       </li>
       <li class="list-group-item">
         <b>Dropout Rate GRU:</b>
@@ -84,4 +91,23 @@ endblock %} {% block page_title %} Preprocessing Data Saham {{ current_ticker }}
     </p>
   </div>
 </div>
-{% endif %} {% endblock %}
+{% endif %} {% block scripts_extra %}
+<script>
+  const trainButton = document.getElementById("train-model-button");
+  const loadingOverlay = document.getElementById("loading-overlay");
+
+  if (trainButton && loadingOverlay) {
+    trainButton.addEventListener("click", function (event) {
+      event.preventDefault();
+
+      loadingOverlay.style.display = "flex";
+
+      const targetUrl = this.href;
+
+      setTimeout(function () {
+        window.location.href = targetUrl;
+      }, 100);
+    });
+  }
+</script>
+{% endblock %} {% endblock %}
