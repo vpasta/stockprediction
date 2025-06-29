@@ -42,6 +42,20 @@ block content %}
             >
               <i class="fas fa-cogs"></i> Muat Model
             </a>
+            <form
+              action="{{ url_for('delete_model', model_id=model.id) }}"
+              method="POST"
+              style="display: inline"
+              onsubmit="return confirm('Apakah Anda yakin ingin menghapus model ini beserta semua prediksinya? Aksi ini tidak dapat dibatalkan.');"
+            >
+              <button
+                type="submit"
+                class="btn btn-sm btn-danger"
+                title="Hapus Model"
+              >
+                <i class="fas fa-trash-alt"></i>
+              </button>
+            </form>
           </td>
         </tr>
         {% else %}

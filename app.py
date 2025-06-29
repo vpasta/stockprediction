@@ -126,6 +126,14 @@ def logout():
 @admin_required
 def index():
     default_ticker = session.get ('current_ticker', config.DEFAULT_TICKER)
+    
+    try:
+        distinct_tickers_query = db.session.query(StockData.ticker).distinct().all()
+        available_tickers = [item[0] for item in distinct_tickers_query]
+    except Exception as e:
+        flash("Gagal mengambil daftar ticker dari database.", "error")
+        available_tickers = []
+    
     default_end_date = datetime.now().strftime('%Y-%m-%d')
     default_start_date = (datetime.now() - timedelta(days=365*5)).strftime('%Y-%m-%d')
 
@@ -156,7 +164,8 @@ def index():
         except ValueError:
             flash("Input parameter pelatihan tidak valid. Harap masukkan angka yang benar.", 'error')
             return render_template('index.html', 
-                                   default_ticker=ticker, 
+                                   default_ticker=ticker,
+                                   available_tickers=available_tickers, 
                                    default_start_date=start_date_str, 
                                    default_end_date=end_date_str,
                                    default_epochs=default_epochs, 
@@ -170,6 +179,7 @@ def index():
             if start_date >= end_date:
                 flash("Tanggal mulai harus sebelum tanggal selesai.", 'error')
                 return render_template('index.html', default_ticker=ticker, default_start_date=start_date_str, default_end_date=end_date_str,
+                                       available_tickers=available_tickers,
                                        default_epochs=epochs,
                                        default_learning_rate=learning_rate,
                                        default_dropout_rate=dropout_rate,
@@ -177,6 +187,7 @@ def index():
             if start_date > datetime.now().date() or end_date > datetime.now().date() + timedelta(days=1):
                 flash("Tanggal tidak boleh di masa depan.", 'error')
                 return render_template('index.html', default_ticker=ticker, default_start_date=start_date_str, default_end_date=end_date_str,
+                                       available_tickers=available_tickers, 
                                        default_epochs=epochs, 
                                        default_learning_rate=learning_rate,
                                        default_dropout_rate=dropout_rate,
@@ -184,6 +195,7 @@ def index():
         except ValueError:
             flash("Format tanggal tidak valid. GunakanYYYY-MM-DD.", 'error')
             return render_template('index.html', default_ticker=ticker, default_start_date=start_date_str, default_end_date=end_date_str,
+                                   available_tickers=available_tickers, 
                                    default_epochs=epochs, 
                                    default_learning_rate=learning_rate,
                                    default_dropout_rate=dropout_rate,
@@ -194,7 +206,7 @@ def index():
 
             if data_yf.empty:
                 flash(f"Tidak ada data ditemukan untuk {ticker} pada periode tersebut.", 'error')
-                return render_template('index.html', default_ticker=ticker, default_start_date=start_date_str, default_end_date=end_date_str,
+                return render_template('index.html', default_ticker=ticker, available_tickers=available_tickers, default_start_date=start_date_str, default_end_date=end_date_str,
                                        default_epochs=epochs, default_learning_rate=learning_rate, default_dropout_rate=dropout_rate, default_patience=patience)
 
             new_records_count = 0
@@ -210,9 +222,7 @@ def index():
                     close_val = float(row['Close'])
                     
                     adj_close_val = float(row['Adj Close']) if 'Adj Close' in row else float(row['Close'])
-                    if 'Adj Close' not in row:
-                        flash(f"Peringatan: Kolom 'Adj Close' tidak ditemukan untuk {ticker} pada {record_date}. Menggunakan 'Close' sebagai gantinya.", 'warning')
-
+                    
                     volume_val = int(row['Volume'])
 
                     stock_data = StockData(
@@ -234,15 +244,16 @@ def index():
             data_yf.to_csv(file_path)
 
             flash(f"Data {ticker} berhasil diunduh dan {new_records_count} record baru disimpan ke database. File CSV juga disimpan sebagai {file_name}", 'success')
-            return render_template('index.html', downloaded_file=file_name, default_ticker=default_ticker, default_start_date=start_date_str, default_end_date=end_date_str,
+            return render_template('index.html', downloaded_file=file_name, default_ticker=default_ticker, available_tickers=available_tickers, default_start_date=start_date_str, default_end_date=end_date_str,
                                    default_epochs=epochs, default_learning_rate=learning_rate, default_dropout_rate=dropout_rate, default_patience=patience)
         except Exception as e:
             db.session.rollback()
             flash(f"Terjadi kesalahan saat mengambil atau menyimpan data: {e}. Coba lagi.", 'error')
-            return render_template('index.html', default_ticker=default_ticker, default_start_date=start_date_str, default_end_date=end_date_str,
+            return render_template('index.html', default_ticker=default_ticker, available_tickers=available_tickers, default_start_date=start_date_str, default_end_date=end_date_str,
                                    default_epochs=epochs, default_learning_rate=learning_rate, default_dropout_rate=dropout_rate, default_patience=patience)
 
     return render_template('index.html', 
+                           available_tickers=available_tickers, 
                            default_ticker=default_ticker, 
                            default_start_date=default_start_date, 
                            default_end_date=default_end_date,
@@ -250,6 +261,79 @@ def index():
                            default_learning_rate=default_learning_rate,
                            default_dropout_rate=default_dropout_rate,
                            default_patience=default_patience)
+
+@app.route('/process_existing', methods=['POST'])
+@admin_required
+def process_existing():
+    """
+    Mengatur ticker yang dipilih dari data yang sudah ada ke dalam sesi
+    dan mengarahkan ke halaman preprocessing.
+    """
+    ticker = request.form.get('ticker_to_process')
+    if ticker:
+        session['current_ticker'] = ticker
+        flash(f"Ticker aktif sekarang adalah {ticker}. Anda bisa memulai preprocessing.", 'info')
+        return redirect(url_for('preprocess'))
+    
+    flash("Anda harus memilih ticker terlebih dahulu.", 'error')
+    return redirect(url_for('index'))
+
+@app.route('/delete_model/<int:model_id>', methods=['POST'])
+@admin_required
+def delete_model(model_id):
+    """
+    Menghapus satu model, detail prediksinya, dan file fisiknya.
+    """
+    model_to_delete = SavedModel.query.get(model_id)
+    if not model_to_delete:
+        flash(f"Model dengan ID {model_id} tidak ditemukan.", 'error')
+        return redirect(url_for('admin_models_manage'))
+
+    try:
+        PredictionDetail.query.filter_by(model_id=model_to_delete.id).delete()
+
+        if os.path.exists(model_to_delete.model_filepath):
+            os.remove(model_to_delete.model_filepath)
+
+        db.session.delete(model_to_delete)
+        db.session.commit()
+
+        flash(f"Model ID {model_id} ({model_to_delete.ticker}) berhasil dihapus.", 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f"Terjadi kesalahan saat menghapus model: {e}", 'error')
+        traceback.print_exc()
+
+    return redirect(url_for('admin_models_manage'))
+
+@app.route('/delete_stock_data/<string:ticker>', methods=['POST'])
+@admin_required
+def delete_stock_data(ticker):
+    """
+    Menghapus semua data yang terkait dengan satu ticker, termasuk data historis,
+    model-modelnya, detail prediksi, dan file fisiknya.
+    """
+    try:
+        models_to_delete = SavedModel.query.filter_by(ticker=ticker).all()
+
+        for model in models_to_delete:
+            PredictionDetail.query.filter_by(model_id=model.id).delete()
+            if os.path.exists(model.model_filepath):
+                os.remove(model.model_filepath)
+        
+            db.session.delete(model)
+
+        StockData.query.filter_by(ticker=ticker).delete()
+
+        db.session.commit()
+
+        flash(f"Semua data dan model untuk ticker {ticker} berhasil dihapus.", 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f"Terjadi kesalahan saat menghapus data saham: {e}", 'error')
+        traceback.print_exc()
+        
+    return redirect(url_for('index'))
 
 @app.route('/download/<filename>')
 @admin_required
@@ -768,7 +852,7 @@ def predict_future():
     features_to_scale = app.config.get('features_to_scale')
     df_full_preprocessed = app.config.get('df_full_preprocessed')
 
-    # --- Pengambilan Parameter Model untuk mencari di DB (Tetap sama) ---
+    # --- Pengambilan Parameter Model untuk mencari di DB ---
     HIDDEN_DIM = app.config.get('hidden_dim')
     INPUT_DIM = app.config.get('input_dim')
     LEARNING_RATE = app.config.get('learning_rate')
@@ -788,8 +872,8 @@ def predict_future():
         return redirect(url_for('preprocess', ticker=ticker))
 
     FUTURE_PREDICTION_DAYS = config.DEFAULT_FUTURE_PREDICTION_DAYS
-    N_PATHS = 50  # Jumlah simulasi Monte Carlo yang akan dijalankan
-    all_future_paths = [] # Untuk menyimpan semua kemungkinan jalur
+    N_PATHS = 50  
+    all_future_paths = [] 
 
     # AKTIFKAN MODE TRAINING untuk mengaktifkan dropout saat prediksi
     gru_model.set_training_mode(True)
@@ -797,7 +881,6 @@ def predict_future():
     adj_close_index = features_to_scale.index('Adj Close')
 
     for _ in range(N_PATHS):
-        # Untuk setiap path, mulai lagi dengan data historis asli
         temp_df = df_full_preprocessed.copy()
         last_historical_date_obj = temp_df.index[-1]
         
@@ -818,7 +901,6 @@ def predict_future():
             
             next_prediction_date = last_historical_date_obj + timedelta(days=i + 1)
             
-            # Menggunakan logika "Suntikan Volatilitas" dengan ATR
             last_atr = temp_df.iloc[-1].get('ATR', df_full_preprocessed['ATR'].mean())
             random_volatility_factor = np.random.uniform(0.7, 1.3)
             high_est = predicted_original_adj_close + (last_atr * random_volatility_factor)
@@ -885,8 +967,7 @@ def load_model(model_id):
         loaded_weights = {key: loaded_weights_data[key] for key in loaded_weights_data}
         gru_model.set_weights(loaded_weights)
 
-        # 3. Rekonstruksi data preprocessing (ini bagian paling penting)
-        # Kita harus mengulang proses preprocessing untuk mendapatkan scaler dan set validasi yang sama
+        # 3. Rekonstruksi data preprocessing 
         stock_records = StockData.query.filter_by(ticker=saved_model.ticker).order_by(StockData.date.asc()).all()
         df_list = [{'Date': r.date, 'Open': r.open_price, 'High': r.high_price, 'Low': r.low_price, 'Close': r.close_price, 'Adj Close': r.adj_close_price, 'Volume': r.volume} for r in stock_records]
         df_full = pd.DataFrame(df_list).set_index('Date')
@@ -915,7 +996,7 @@ def load_model(model_id):
         app.config['df_full_preprocessed'] = df_full_preprocessed
         app.config['features_to_scale'] = features_to_scale
         
-        app.config['X_train'] = X[:train_size_sequences] # Simpan juga data train
+        app.config['X_train'] = X[:train_size_sequences] 
         app.config['y_train'] = y[:train_size_sequences]
         app.config['X_val'] = X_val_data
         app.config['y_val'] = y_val_data
@@ -1016,7 +1097,6 @@ def free_user_predict_view():
     model_id = request.args.get('model_id', type=int)
 
     if not model_id:
-        # Logika untuk memuat model terbaru jika tidak ada ID yang dipilih
         latest_model = SavedModel.query.filter_by(ticker=config.DEFAULT_TICKER).order_by(SavedModel.training_timestamp.desc()).first()
         if latest_model:
             model_id = latest_model.id
@@ -1031,7 +1111,6 @@ def free_user_predict_view():
         flash("Model prediksi yang dipilih tidak ditemukan.", 'error')
         return redirect(url_for('dashboard_user'))
 
-    # --- 1. Data untuk Grafik Historis (Aktual vs. Prediksi) ---
     prediction_details = PredictionDetail.query.filter_by(model_id=saved_model.id).order_by(PredictionDetail.prediction_date.asc()).all()
     
     if not prediction_details:
@@ -1044,9 +1123,6 @@ def free_user_predict_view():
     ]
     prediction_results_historical_table = [{'Date': d['Date'], 'True Price': f"{d['True Price']:.2f}", 'Predicted Price': f"{d['Predicted Price']:.2f}"} for d in full_prediction_data_historical_chart]
 
-    # --- 2. Persiapan untuk Simulasi Prediksi Masa Depan (Monte Carlo) ---
-    
-    # a. Muat instance model GRU dan bobotnya dari file
     try:
         gru_model = GRU(input_dim=saved_model.input_dim, hidden_dim=saved_model.hidden_dim, output_dim=1, dropout_rate=saved_model.dropout_rate)
         loaded_weights_data = np.load(saved_model.model_filepath)
@@ -1056,7 +1132,6 @@ def free_user_predict_view():
         flash(f"Gagal memuat file model fisik ({os.path.basename(saved_model.model_filepath)}): {e}", 'error')
         return redirect(url_for('dashboard_user'))
 
-    # b. Rekonstruksi data historis hingga tanggal prediksi terakhir
     last_prediction_date = prediction_details[-1].prediction_date
     stock_records_for_sim = StockData.query.filter(StockData.ticker == saved_model.ticker, StockData.date <= last_prediction_date).order_by(StockData.date.asc()).all()
     
@@ -1069,16 +1144,14 @@ def free_user_predict_view():
     
     features_to_scale = ['Open', 'High', 'Low', 'Close', 'Adj Close', 'Volume', 'SMA_10', 'SMA_20', 'EMA_10', 'EMA_20', 'RSI', 'MACD', 'Signal_Line', 'MACD_Hist', 'ATR']
     
-    # c. Buat dan fit scaler baru berdasarkan data historis yang relevan
     scaler = MinMaxScaler(feature_range=(0, 1))
     scaler.fit(df_for_sim[features_to_scale].values)
 
-    # d. Jalankan simulasi Monte Carlo
     FUTURE_PREDICTION_DAYS = config.DEFAULT_FUTURE_PREDICTION_DAYS
     N_PATHS = 50
     all_future_paths = []
 
-    gru_model.set_training_mode(True) # Aktifkan dropout
+    gru_model.set_training_mode(True) 
     adj_close_index = features_to_scale.index('Adj Close')
 
     for _ in range(N_PATHS):
@@ -1107,9 +1180,8 @@ def free_user_predict_view():
 
         all_future_paths.append(current_path_predictions)
 
-    gru_model.set_training_mode(False) # Matikan lagi dropout
+    gru_model.set_training_mode(False) 
 
-    # e. Siapkan data untuk dikirim ke template
     avg_predictions = np.mean(all_future_paths, axis=0)
     
     historical_for_future_chart_df = df_for_sim.iloc[-saved_model.lookback_window:]

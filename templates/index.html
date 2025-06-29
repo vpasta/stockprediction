@@ -103,21 +103,48 @@ block content %}
 </div>
 
 <div class="card">
-  <div class="card-header">
-    <h3 class="card-title">Aksi Lanjutan</h3>
-  </div>
-  <div class="card-body">
-    <p>Atau lanjutkan ke proses data yang sudah ada untuk ticker yang dipilih:</p>
-    <a href="{{ url_for('preprocess') }}" class="btn btn-info">
-      Proses Data Saham {{ session.get('current_ticker', default_ticker) }}
-    </a>
-    
-    {% if downloaded_file %}
-    <p class="mt-3">File CSV terakhir diunduh: {{ downloaded_file }}</p>
-    <a href="{{ url_for('download_file', filename=downloaded_file) }}" class="btn btn-secondary">
-      Unduh File CSV
-    </a>
-    {% endif %}
-  </div>
+  <div class="card card-success">
+    <div class="card-header">
+        <h3 class="card-title">Proses Data yang Sudah Ada</h3>
+    </div>
+    <div class="card-body">
+        <p>Pilih ticker yang datanya sudah tersimpan di database untuk langsung memulai tahap preprocessing.</p>
+        <form action="{{ url_for('process_existing') }}" method="POST">
+          <div class="form-group">
+              <label for="ticker_to_process">Pilih Ticker Saham:</label>
+              <div class="input-group">
+                  <select name="ticker_to_process" class="form-control" required>
+                      <option value="">-- Pilih Ticker --</option>
+                      {% for ticker in available_tickers %}
+                          <option value="{{ ticker }}" {% if ticker == session.get('current_ticker') %}selected{% endif %}>
+                              {{ ticker }}
+                          </option>
+                      {% endfor %}
+                  </select>
+                  <div class="input-group-append">
+                      <button type="submit" class="btn btn-success">
+                          <i class="fas fa-cogs"></i> Pilih & Lanjutkan
+                      </button>
+                  </div>
+              </div>
+          </div>
+      </form>
+      <hr>
+      <h5>Hapus Data Saham Tersimpan</h5>
+      <p><small>Aksi ini akan menghapus data historis saham dan semua model yang pernah dilatih untuk ticker tersebut.</small></p>
+      <div class="list-group">
+          {% for ticker in available_tickers %}
+          <div class="list-group-item d-flex justify-content-between align-items-center">
+              {{ ticker }}
+              <form action="{{ url_for('delete_stock_data', ticker=ticker) }}" method="POST" onsubmit="return confirm('PERINGATAN: Anda akan menghapus semua data dan model untuk {{ ticker }}. Apakah Anda benar-benar yakin?');">
+                  <button type="submit" class="btn btn-xs btn-danger">
+                      <i class="fas fa-times"></i> Hapus
+                  </button>
+              </form>
+          </div>
+          {% endfor %}
+      </div>
+    </div>
+    </div>
 </div>
 {% endblock %}

@@ -1,234 +1,236 @@
 <!DOCTYPE html>
 <html lang="id">
-  <head>
+<head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Hasil Prediksi Saham {{ ticker }} (Pengguna)</title>
+    <title>Hasil Prediksi - {{ ticker }}</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-      body {
-        font-family: "Poppins", sans-serif;
-        background: linear-gradient(135deg, #d0f1ff, #f9fcff);
-        color: #333;
-        margin: 0;
-      }
-      .container {
-        background-color: #fff;
-        padding: 25px;
-        border-radius: 8px;
-        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-        max-width: 900px;
-        margin: 30px auto;
-      }
-      h1,
-      h2,
-      h4 {
-        color: #0056b3;
-        text-align: center;
-        margin-bottom: 20px;
-      }
-      .message {
-        padding: 10px;
-        margin: 20px 0;
-        border-radius: 4px;
-        text-align: center;
-      }
-      .success {
-        background-color: #d4edda;
-        color: #155724;
-      }
-      .error {
-        background-color: #f8d7da;
-        color: #721c24;
-      }
-      .info {
-        background-color: #d1ecf1;
-        color: #0c5460;
-      }
-      .controls {
-        text-align: center;
-        margin-bottom: 20px;
-      }
-      .controls a {
-        padding: 10px 15px;
-        background-color: #007bff;
-        color: white;
-        text-decoration: none;
-        border-radius: 4px;
-      }
-      .metric-display {
-        display: flex;
-        justify-content: space-around;
-        margin-bottom: 20px;
-        text-align: center;
-      }
-      .metric-item {
-        font-size: 1.1em;
-      }
-      .metric-item strong {
-        display: block;
-        font-size: 1.3em;
-        color: #0056b3;
-      }
-      .chart-container {
-        width: 95%;
-        margin: auto;
-        padding: 15px;
-        border-radius: 8px;
-        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-        margin-bottom: 30px;
-      }
-      canvas {
-        max-width: 100%;
-        height: auto;
-      }
-      .prediction-table {
-        width: 100%;
-        border-collapse: collapse;
-        margin-top: 20px;
-      }
-      .prediction-table th,
-      .prediction-table td {
-        border: 1px solid #ddd;
-        padding: 8px;
-        text-align: left;
-      }
-      .prediction-table th {
-        background-color: #f2f2f2;
-      }
+        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap');
+        
+        body {
+            font-family: 'Poppins', sans-serif;
+            margin: 0;
+            background: linear-gradient(135deg, #d0f1ff, #f9fcff);
+            background-attachment: fixed;
+            color: #333;
+        }
+
+        .top-bar {
+            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+            padding: 15px 40px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .top-bar .model-info {
+            font-weight: 600;
+            color: #1e2a3b;
+        }
+
+        .top-bar .back-button {
+            padding: 8px 18px;
+            background-color: #0d6efd;
+            color: white;
+            text-decoration: none;
+            border-radius: 8px;
+            font-weight: 400;
+            transition: background-color 0.3s ease;
+        }
+
+        .top-bar .back-button:hover {
+            background-color: #0b5ed7;
+        }
+
+        /* Kontainer utama untuk semua konten */
+        .main-container {
+            padding: 30px 40px;
+            max-width: 1100px;
+            margin: 0 auto;
+        }
+
+        h2 {
+            text-align: center;
+            color: #1e2a3b;
+            font-weight: 600;
+            margin-bottom: 30px;
+        }
+
+        /* Panel "Frosted Glass" untuk konten */
+        .content-panel {
+            background: rgba(255, 255, 255, 0.65);
+            backdrop-filter: blur(12px);
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            margin-bottom: 30px;
+        }
+
+        /* Grid untuk kartu metrik */
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            text-align: center;
+            margin-bottom: 40px;
+        }
+
+        .metric-card {
+            padding: 20px;
+        }
+
+        .metric-card span {
+            font-size: 1.1em;
+            color: #5a6268;
+        }
+
+        .metric-card strong {
+            display: block;
+            font-size: 2em;
+            font-weight: 600;
+            color: #0d6efd;
+            margin-top: 5px;
+        }
+
+        /* Tabel prediksi */
+        .prediction-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+        .prediction-table th, .prediction-table td {
+            border-bottom: 1px solid #dee2e6;
+            padding: 12px;
+            text-align: left;
+        }
+        .prediction-table th {
+            background-color: transparent;
+            font-weight: 600;
+        }
+        
+        canvas {
+            max-width: 100%;
+            height: auto;
+        }
+
     </style>
-  </head>
-  <body>
-    <div class="container">
-      <h1>Hasil Prediksi Saham {{ ticker }}</h1>
-      <h4 style="text-align: center; color: #555">
-        Model yang dipilih: {{ selected_model_text }}
-      </h4>
-
-      {% with messages = get_flashed_messages(with_categories=true) %} {% if
-      messages %}{% for category, message in messages %}
-      <div class="message {{ category }}">{{ message }}</div>
-      {% endfor %}{% endif %}{% endwith %}
-
-      <div class="controls">
-        <a href="{{ url_for('dashboard_user') }}">Kembali ke Pemilihan Model</a>
-      </div>
-
-      {% if rmse is not none %}
-      <div class="metric-display">
-        <div class="metric-item">
-          RMSE <strong>{{ "%.4f"|format(rmse) }}</strong>
-        </div>
-        <div class="metric-item">
-          MAE <strong>{{ "%.4f"|format(mae) }}</strong>
-        </div>
-        <div class="metric-item">
-          MAPE <strong>{{ "%.2f"|format(mape) }}%</strong>
-        </div>
-      </div>
-
-      <h2 class="mt-4 mb-3 text-center">
-        Grafik Perbandingan Harga Aktual vs. Prediksi Historis
-      </h2>
-      <div class="chart-container">
-        <canvas id="historicalComparisonChart"></canvas>
-      </div>
-
-      <h2 class="mt-4 mb-3 text-center">
-        Simulasi Prediksi Masa Depan ({{ future_prediction_days }} Hari)
-      </h2>
-      <div class="chart-container">
-        <canvas id="futurePredictionChart"></canvas>
-      </div>
-
-      <h2>
-        Prediksi Historis (Total {{ total_predictions }} Data, Ditampilkan 20
-        Terakhir)
-      </h2>
-      <table class="prediction-table">
-        <thead>
-          <tr>
-            <th>Tanggal</th>
-            <th>Harga Aktual</th>
-            <th>Harga Prediksi</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for result in prediction_results %}
-          <tr>
-            <td>{{ result['Date'] }}</td>
-            <td>{{ result['True Price'] }}</td>
-            <td>{{ result['Predicted Price'] }}</td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-      {% endif %}
+</head>
+<body>
+    <div class="top-bar">
+        <div class="model-info">Menampilkan Model: {{ selected_model_text }}</div>
+        <a href="{{ url_for('dashboard_user') }}" class="back-button">Kembali ke Dashboard</a>
     </div>
 
-    <script>
-      // --- SKRIP UNTUK GRAFIK 1: PERBANDINGAN HISTORIS ---
-      const historicalComparisonData = {{ full_prediction_data | tojson }} || [];
-      if (historicalComparisonData.length > 0) {
-          const histCtx = document.getElementById('historicalComparisonChart').getContext('2d');
-          new Chart(histCtx, {
-              type: 'line',
-              data: {
-                  labels: historicalComparisonData.map(d => d['Date']),
-                  datasets: [
-                      { label: 'Harga Aktual', data: historicalComparisonData.map(d => d['True Price']), borderColor: 'rgb(75, 192, 192)', tension: 0.1, pointRadius: 0 },
-                      { label: 'Harga Prediksi', data: historicalComparisonData.map(d => d['Predicted Price']), borderColor: 'rgb(255, 99, 132)', tension: 0.1, pointRadius: 0 }
-                  ]
-              },
-              options: { responsive: true, plugins: { title: { display: true, text: 'Perbandingan Harga Aktual vs. Prediksi Historis' } } }
-          });
-      }
+    <div class="main-container">
+        {% if rmse is not none %}
+        <div class="content-panel metrics-grid">
+            <div class="metric-card">
+                <span>RMSE</span>
+                <strong>{{ "%.4f"|format(rmse) }}</strong>
+            </div>
+            <div class="metric-card">
+                <span>MAE</span>
+                <strong>{{ "%.4f"|format(mae) }}</strong>
+            </div>
+            <div class="metric-card">
+                <span>MAPE</span>
+                <strong>{{ "%.2f"|format(mape) }}%</strong>
+            </div>
+        </div>
+        {% endif %}
 
-      // --- SKRIP UNTUK GRAFIK 2: SIMULASI MASA DEPAN (MONTE CARLO) ---
-      const historicalForFuture = {{ historical_for_future_chart | tojson }} || [];
-      const allFuturePaths = {{ future_for_chart_all_paths | tojson }} || [];
-      const avgPredictions = {{ avg_predictions | tojson }} || [];
+        <div class="content-panel">
+            <h2>Perbandingan Harga Aktual vs. Prediksi Historis</h2>
+            <canvas id="historicalComparisonChart"></canvas>
+        </div>
 
-      if (historicalForFuture.length > 0 && allFuturePaths.length > 0) {
-          const futureDates = allFuturePaths[0].map((_, i) => {
-              const lastDate = new Date(historicalForFuture[historicalForFuture.length - 1].Date);
-              lastDate.setDate(lastDate.getDate() + i + 1);
-              return lastDate.toISOString().split('T')[0];
-          });
+        <div class="content-panel">
+            <h2>Simulasi Prediksi Masa Depan ({{ future_prediction_days }} Hari)</h2>
+            <canvas id="futurePredictionChart"></canvas>
+        </div>
 
-          const chartLabels = historicalForFuture.map(d => d.Date).concat(futureDates);
-          const datasets = [];
+        <div class="content-panel">
+            <h2>Detail Prediksi (20 Data Terakhir)</h2>
+            <table class="prediction-table">
+                <thead><tr><th>Tanggal</th><th>Harga Aktual</th><th>Harga Prediksi</th></tr></thead>
+                <tbody>
+                    {% for result in prediction_results %}
+                    <tr><td>{{ result['Date'] }}</td><td>{{ result['True Price'] }}</td><td>{{ result['Predicted Price'] }}</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
 
-          allFuturePaths.forEach((path) => {
-              datasets.push({
-                  label: 'Simulasi', data: Array(historicalForFuture.length).fill(NaN).concat(path),
-                  borderColor: 'rgba(255, 99, 132, 0.1)', borderWidth: 1.5, pointRadius: 0
-              });
-          });
+<script>
+    // --- SKRIP UNTUK GRAFIK 1: PERBANDINGAN HISTORIS ---
+    const historicalComparisonData = {{ full_prediction_data | tojson | safe }} || [];
+    if (historicalComparisonData.length > 0) {
+        const histCtx = document.getElementById('historicalComparisonChart').getContext('2d');
+        new Chart(histCtx, {
+            type: 'line',
+            data: {
+                labels: historicalComparisonData.map(d => d['Date']),
+                datasets: [
+                    { label: 'Harga Aktual', data: historicalComparisonData.map(d => d['True Price']), borderColor: 'rgb(54, 162, 235)', backgroundColor: 'rgba(54, 162, 235, 0.1)', tension: 0.1, pointRadius: 1, fill: true },
+                    { label: 'Harga Prediksi', data: historicalComparisonData.map(d => d['Predicted Price']), borderColor: 'rgb(255, 99, 132)', backgroundColor: 'rgba(255, 99, 132, 0.1)', tension: 0.1, pointRadius: 1, fill: true }
+                ]
+            },
+            options: { responsive: true, plugins: { legend: { display: true } } }
+        });
+    }
 
-          datasets.push({
-              label: 'Data Historis', data: historicalForFuture.map(d => d.Price).concat(Array(futureDates.length).fill(NaN)),
-              borderColor: 'rgb(54, 162, 235)', borderWidth: 2, pointRadius: 0
-          });
+    // --- SKRIP UNTUK GRAFIK 2: SIMULASI MASA DEPAN ---
+    const historicalForFuture = {{ historical_for_future_chart | tojson | safe }} || [];
+    const allFuturePaths = {{ future_for_chart_all_paths | tojson | safe }} || [];
+    const avgPredictions = {{ avg_predictions | tojson | safe }} || [];
 
-          datasets.push({
-              label: 'Rata-rata Prediksi', data: Array(historicalForFuture.length - 1).fill(NaN).concat([historicalForFuture[historicalForFuture.length-1].Price]).concat(avgPredictions),
-              borderColor: 'rgb(220, 53, 69)', borderWidth: 2.5, pointRadius: 0
-          });
+    if (historicalForFuture.length > 0 && allFuturePaths.length > 0) {
+        const futureDates = allFuturePaths[0].map((_, i) => {
+            const lastDate = new Date(historicalForFuture[historicalForFuture.length - 1].Date);
+            lastDate.setDate(lastDate.getDate() + i + 2); 
+            return lastDate.toISOString().split('T')[0];
+        });
+        
+        const chartLabels = historicalForFuture.map(d => d.Date).concat(futureDates);
+        const datasets = [];
 
-          const futureCtx = document.getElementById('futurePredictionChart').getContext('2d');
-          new Chart(futureCtx, {
-              type: 'line',
-              data: { labels: chartLabels, datasets: datasets },
-              options: {
-                  responsive: true,
-                  plugins: {
-                      title: { display: true, text: 'Simulasi Prediksi Harga di Masa Depan' },
-                      legend: { labels: { filter: item => !item.text.includes('Simulasi') } }
-                  }
-              }
-          });
-      }
-    </script>
-  </body>
+        allFuturePaths.forEach((path) => {
+            datasets.push({
+                label: 'Simulasi', data: Array(historicalForFuture.length).fill(NaN).concat(path),
+                borderColor: 'rgba(255, 99, 132, 0.1)', borderWidth: 1.5, pointRadius: 0
+            });
+        });
+        
+        datasets.push({
+            label: 'Data Historis', data: historicalForFuture.map(d => d.Price).concat(Array(futureDates.length).fill(NaN)),
+            borderColor: 'rgb(54, 162, 235)', borderWidth: 2, pointRadius: 0
+        });
+
+        datasets.push({
+            label: 'Rata-rata Prediksi', data: Array(historicalForFuture.length - 1).fill(NaN).concat([historicalForFuture[historicalForFuture.length-1].Price]).concat(avgPredictions),
+            borderColor: 'rgb(220, 53, 69)', borderWidth: 2.5, pointRadius: 0
+        });
+
+        const futureCtx = document.getElementById('futurePredictionChart').getContext('2d');
+        new Chart(futureCtx, {
+            type: 'line',
+            data: { labels: chartLabels, datasets: datasets },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: { labels: { filter: item => !item.text.includes('Simulasi') } }
+                }
+            }
+        });
+    }
+</script>
+</body>
 </html>
