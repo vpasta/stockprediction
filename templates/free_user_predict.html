@@ -1,236 +1,260 @@
 <!DOCTYPE html>
 <html lang="id">
-<head>
+  <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Hasil Prediksi - {{ ticker }}</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap');
-        
-        body {
-            font-family: 'Poppins', sans-serif;
-            margin: 0;
-            background: linear-gradient(135deg, #d0f1ff, #f9fcff);
-            background-attachment: fixed;
-            color: #333;
-        }
+      @import url("https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap");
 
-        .top-bar {
-            background: rgba(255, 255, 255, 0.7);
-            backdrop-filter: blur(10px);
-            border-bottom: 1px solid rgba(255, 255, 255, 0.2);
-            padding: 15px 40px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            position: sticky;
-            top: 0;
-            z-index: 100;
-        }
+      body {
+        font-family: "Poppins", sans-serif;
+        margin: 0;
+        background: linear-gradient(135deg, #d0f1ff, #f9fcff);
+        background-attachment: fixed;
+        color: #333;
+      }
 
-        .top-bar .model-info {
-            font-weight: 600;
-            color: #1e2a3b;
-        }
+      .top-bar {
+        background: rgba(255, 255, 255, 0.7);
+        backdrop-filter: blur(10px);
+        border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+        padding: 15px 40px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        position: sticky;
+        top: 0;
+        z-index: 100;
+      }
 
-        .top-bar .back-button {
-            padding: 8px 18px;
-            background-color: #0d6efd;
-            color: white;
-            text-decoration: none;
-            border-radius: 8px;
-            font-weight: 400;
-            transition: background-color 0.3s ease;
-        }
+      .top-bar .model-info {
+        font-weight: 600;
+        color: #1e2a3b;
+      }
 
-        .top-bar .back-button:hover {
-            background-color: #0b5ed7;
-        }
+      .top-bar .back-button {
+        padding: 8px 18px;
+        background-color: #0d6efd;
+        color: white;
+        text-decoration: none;
+        border-radius: 8px;
+        font-weight: 400;
+        transition: background-color 0.3s ease;
+      }
 
-        /* Kontainer utama untuk semua konten */
-        .main-container {
-            padding: 30px 40px;
-            max-width: 1100px;
-            margin: 0 auto;
-        }
+      .top-bar .back-button:hover {
+        background-color: #0b5ed7;
+      }
 
-        h2 {
-            text-align: center;
-            color: #1e2a3b;
-            font-weight: 600;
-            margin-bottom: 30px;
-        }
+      .main-container {
+        padding: 30px 40px;
+        max-width: 1100px;
+        margin: 0 auto;
+      }
 
-        /* Panel "Frosted Glass" untuk konten */
-        .content-panel {
-            background: rgba(255, 255, 255, 0.65);
-            backdrop-filter: blur(12px);
-            border-radius: 15px;
-            padding: 25px;
-            box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.1);
-            border: 1px solid rgba(255, 255, 255, 0.18);
-            margin-bottom: 30px;
-        }
+      h2 {
+        text-align: center;
+        color: #1e2a3b;
+        font-weight: 600;
+        margin-bottom: 30px;
+      }
 
-        /* Grid untuk kartu metrik */
-        .metrics-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 20px;
-            text-align: center;
-            margin-bottom: 40px;
-        }
+      .content-panel {
+        background: rgba(255, 255, 255, 0.65);
+        backdrop-filter: blur(12px);
+        border-radius: 15px;
+        padding: 25px;
+        box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.1);
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        margin-bottom: 30px;
+      }
 
-        .metric-card {
-            padding: 20px;
-        }
+      .metrics-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 20px;
+        text-align: center;
+        margin-bottom: 40px;
+      }
 
-        .metric-card span {
-            font-size: 1.1em;
-            color: #5a6268;
-        }
+      .metric-card span {
+        font-size: 1.1em;
+        color: #5a6268;
+      }
+      .metric-card strong {
+        display: block;
+        font-size: 2em;
+        font-weight: 600;
+        color: #0d6efd;
+        margin-top: 5px;
+      }
 
-        .metric-card strong {
-            display: block;
-            font-size: 2em;
-            font-weight: 600;
-            color: #0d6efd;
-            margin-top: 5px;
-        }
+      .prediction-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 10px;
+      }
+      .prediction-table th,
+      .prediction-table td {
+        border-bottom: 1px solid #dee2e6;
+        padding: 12px;
+        text-align: left;
+      }
+      .prediction-table th {
+        background-color: transparent;
+        font-weight: 600;
+      }
 
-        /* Tabel prediksi */
-        .prediction-table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 10px;
-        }
-        .prediction-table th, .prediction-table td {
-            border-bottom: 1px solid #dee2e6;
-            padding: 12px;
-            text-align: left;
-        }
-        .prediction-table th {
-            background-color: transparent;
-            font-weight: 600;
-        }
-        
-        canvas {
-            max-width: 100%;
-            height: auto;
-        }
-
+      canvas {
+        max-width: 100%;
+        height: auto;
+      }
     </style>
-</head>
-<body>
+  </head>
+  <body>
     <div class="top-bar">
-        <div class="model-info">Menampilkan Model: {{ selected_model_text }}</div>
-        <a href="{{ url_for('dashboard_user') }}" class="back-button">Kembali ke Dashboard</a>
+      <div class="model-info">Menampilkan Model: {{ selected_model_text }}</div>
+      <a href="{{ url_for('dashboard_user') }}" class="back-button"
+        >Kembali ke Dashboard</a
+      >
     </div>
 
     <div class="main-container">
-        {% if rmse is not none %}
-        <div class="content-panel metrics-grid">
-            <div class="metric-card">
-                <span>RMSE</span>
-                <strong>{{ "%.4f"|format(rmse) }}</strong>
-            </div>
-            <div class="metric-card">
-                <span>MAE</span>
-                <strong>{{ "%.4f"|format(mae) }}</strong>
-            </div>
-            <div class="metric-card">
-                <span>MAPE</span>
-                <strong>{{ "%.2f"|format(mape) }}%</strong>
-            </div>
+      {% include '_messages.html' %} {% if rmse is not none %}
+      <div class="content-panel metrics-grid">
+        <div class="metric-card">
+          <span>RMSE</span><strong>{{ "%.4f"|format(rmse) }}</strong>
         </div>
-        {% endif %}
+        <div class="metric-card">
+          <span>MAE</span><strong>{{ "%.4f"|format(mae) }}</strong>
+        </div>
+        <div class="metric-card">
+          <span>MAPE</span><strong>{{ "%.2f"|format(mape) }}%</strong>
+        </div>
+      </div>
+      {% endif %}
 
-        <div class="content-panel">
-            <h2>Perbandingan Harga Aktual vs. Prediksi Historis</h2>
-            <canvas id="historicalComparisonChart"></canvas>
-        </div>
+      <div class="content-panel">
+        <h2>Perbandingan Harga Aktual vs. Prediksi Historis</h2>
+        <canvas id="historicalComparisonChart"></canvas>
+      </div>
 
-        <div class="content-panel">
-            <h2>Simulasi Prediksi Masa Depan ({{ future_prediction_days }} Hari)</h2>
-            <canvas id="futurePredictionChart"></canvas>
-        </div>
+      <div class="content-panel">
+        <h2>Prediksi Masa Depan ({{ future_prediction_days }} Hari)</h2>
+        <canvas id="futurePredictionChart"></canvas>
+      </div>
 
-        <div class="content-panel">
-            <h2>Detail Prediksi (20 Data Terakhir)</h2>
-            <table class="prediction-table">
-                <thead><tr><th>Tanggal</th><th>Harga Aktual</th><th>Harga Prediksi</th></tr></thead>
-                <tbody>
-                    {% for result in prediction_results %}
-                    <tr><td>{{ result['Date'] }}</td><td>{{ result['True Price'] }}</td><td>{{ result['Predicted Price'] }}</td></tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
+      <div class="content-panel">
+        <h2>Tabel Prediksi Masa Depan</h2>
+        <table class="prediction-table">
+          <thead>
+            <tr>
+              <th>Tanggal Prediksi</th>
+              <th>Estimasi Harga</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for prediction in future_predictions %}
+            <tr>
+              <td>{{ prediction['Date'] }}</td>
+              <td>$ {{ prediction['Predicted Price'] }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <div class="content-panel">
+        <h2>Detail Prediksi (20 Data Terakhir)</h2>
+        <table class="prediction-table">
+          <thead>
+            <tr>
+              <th>Tanggal</th>
+              <th>Harga Aktual</th>
+              <th>Harga Prediksi</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for result in prediction_results %}
+            <tr>
+              <td>{{ result['Date'] }}</td>
+              <td>$ {{ result['True Price'] }}</td>
+              <td>$ {{ result['Predicted Price'] }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
     </div>
 
-<script>
-    // --- SKRIP UNTUK GRAFIK 1: PERBANDINGAN HISTORIS ---
-    const historicalComparisonData = {{ full_prediction_data | tojson | safe }} || [];
-    if (historicalComparisonData.length > 0) {
-        const histCtx = document.getElementById('historicalComparisonChart').getContext('2d');
-        new Chart(histCtx, {
-            type: 'line',
-            data: {
-                labels: historicalComparisonData.map(d => d['Date']),
-                datasets: [
-                    { label: 'Harga Aktual', data: historicalComparisonData.map(d => d['True Price']), borderColor: 'rgb(54, 162, 235)', backgroundColor: 'rgba(54, 162, 235, 0.1)', tension: 0.1, pointRadius: 1, fill: true },
-                    { label: 'Harga Prediksi', data: historicalComparisonData.map(d => d['Predicted Price']), borderColor: 'rgb(255, 99, 132)', backgroundColor: 'rgba(255, 99, 132, 0.1)', tension: 0.1, pointRadius: 1, fill: true }
-                ]
-            },
-            options: { responsive: true, plugins: { legend: { display: true } } }
-        });
-    }
+    <script>
+      document.addEventListener("DOMContentLoaded", function() {
+          const historicalComparisonData = {{ full_prediction_data | tojson | safe }} || [];
+          if (historicalComparisonData.length > 0) {
+              const histCtx = document.getElementById('historicalComparisonChart').getContext('2d');
+              new Chart(histCtx, {
+                  type: 'line',
+                  data: {
+                      labels: historicalComparisonData.map(d => d['Date']),
+                      datasets: [
+                          { label: 'Harga Aktual', data: historicalComparisonData.map(d => d['True Price']), borderColor: 'rgb(54, 162, 235)', backgroundColor: 'rgba(54, 162, 235, 0.1)', tension: 0.1, pointRadius: 1, fill: true },
+                          { label: 'Harga Prediksi', data: historicalComparisonData.map(d => d['Predicted Price']), borderColor: 'rgba(220, 53, 69, 1)', backgroundColor: 'rgba(220, 53, 69, 0.1)', tension: 0.1, pointRadius: 1, fill: true }
+                      ]
+                  },
+                  options: { responsive: true, plugins: { legend: { display: true } } }
+              });
+          }
 
-    // --- SKRIP UNTUK GRAFIK 2: SIMULASI MASA DEPAN ---
-    const historicalForFuture = {{ historical_for_future_chart | tojson | safe }} || [];
-    const allFuturePaths = {{ future_for_chart_all_paths | tojson | safe }} || [];
-    const avgPredictions = {{ avg_predictions | tojson | safe }} || [];
 
-    if (historicalForFuture.length > 0 && allFuturePaths.length > 0) {
-        const futureDates = allFuturePaths[0].map((_, i) => {
-            const lastDate = new Date(historicalForFuture[historicalForFuture.length - 1].Date);
-            lastDate.setDate(lastDate.getDate() + i + 2); 
-            return lastDate.toISOString().split('T')[0];
-        });
-        
-        const chartLabels = historicalForFuture.map(d => d.Date).concat(futureDates);
-        const datasets = [];
+          const historicalForFuture = {{ historical_for_future_chart | tojson | safe }} || [];
+          const avgPredictions = {{ avg_predictions | tojson | safe }} || [];
+          const futureDates = {{ future_predictions | map(attribute='Date') | list | tojson }};
 
-        allFuturePaths.forEach((path) => {
-            datasets.push({
-                label: 'Simulasi', data: Array(historicalForFuture.length).fill(NaN).concat(path),
-                borderColor: 'rgba(255, 99, 132, 0.1)', borderWidth: 1.5, pointRadius: 0
-            });
-        });
-        
-        datasets.push({
-            label: 'Data Historis', data: historicalForFuture.map(d => d.Price).concat(Array(futureDates.length).fill(NaN)),
-            borderColor: 'rgb(54, 162, 235)', borderWidth: 2, pointRadius: 0
-        });
+          if (historicalForFuture.length > 0 && avgPredictions.length > 0) {
+              const historicalLabels = historicalForFuture.map(d => d.Date);
+              const historicalPrices = historicalForFuture.map(d => d.Price);
+              const allLabels = historicalLabels.concat(futureDates);
+              const predictionDataLine = new Array(historicalLabels.length - 1).fill(null);
+              predictionDataLine.push(historicalPrices[historicalPrices.length - 1]);
+              predictionDataLine.push(...avgPredictions);
 
-        datasets.push({
-            label: 'Rata-rata Prediksi', data: Array(historicalForFuture.length - 1).fill(NaN).concat([historicalForFuture[historicalForFuture.length-1].Price]).concat(avgPredictions),
-            borderColor: 'rgb(220, 53, 69)', borderWidth: 2.5, pointRadius: 0
-        });
-
-        const futureCtx = document.getElementById('futurePredictionChart').getContext('2d');
-        new Chart(futureCtx, {
-            type: 'line',
-            data: { labels: chartLabels, datasets: datasets },
-            options: {
-                responsive: true,
-                plugins: {
-                    legend: { labels: { filter: item => !item.text.includes('Simulasi') } }
-                }
-            }
-        });
-    }
-</script>
-</body>
+              const futureCtx = document.getElementById('futurePredictionChart').getContext('2d');
+              new Chart(futureCtx, {
+                  type: 'line',
+                  data: {
+                      labels: allLabels,
+                      datasets: [{
+                          label: 'Harga Historis',
+                          data: historicalPrices,
+                          borderColor: 'rgba(54, 162, 235, 1)',
+                          borderWidth: 2,
+                          pointRadius: 0,
+                          fill: false
+                      }, {
+                          label: 'Harga Prediksi',
+                          data: predictionDataLine,
+                          borderColor: 'rgba(220, 53, 69, 1)',
+                          backgroundColor: 'rgba(220, 53, 69, 0.1)',
+                          borderWidth: 2,
+                          pointRadius: 2,
+                          borderDash: [5, 5],
+                          fill: false
+                      }]
+                  },
+                  options: {
+                      responsive: true,
+                      scales: {
+                          x: { type: 'time', time: { unit: 'day' } },
+                          y: { ticks: { callback: value => '$' + value.toFixed(2) } }
+                      },
+                      plugins: { tooltip: { mode: 'index', intersect: false } }
+                  }
+              });
+          }
+      });
+    </script>
+  </body>
 </html>

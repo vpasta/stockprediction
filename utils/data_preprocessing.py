@@ -1,71 +1,53 @@
-import pandas as pd
 import numpy as np
+import pandas as pd
 from sklearn.preprocessing import MinMaxScaler
 
-def calculate_technical_indicators(df):
+def preprocess_data(df, lookback_window):
     """
-    Menghitung berbagai indikator teknikal dan menambahkannya ke DataFrame.
-    DataFrame harus memiliki kolom 'Adj Close', 'High', 'Low', 'Close', 'Volume'.
-    """
-    df_copy = df.copy()
+    Mempersiapkan data untuk model GRU hanya menggunakan harga 'Adj Close'.
 
-    # SMA (Simple Moving Average)
-    df_copy['SMA_10'] = df_copy['Adj Close'].rolling(window=10).mean()
-    df_copy['SMA_20'] = df_copy['Adj Close'].rolling(window=20).mean()
-
-    # EMA (Exponential Moving Average)
-    df_copy['EMA_10'] = df_copy['Adj Close'].ewm(span=10, adjust=False).mean()
-    df_copy['EMA_20'] = df_copy['Adj Close'].ewm(span=20, adjust=False).mean()
-
-    # RSI (Relative Strength Index)
-    delta = df_copy['Adj Close'].diff(1)
-    gain = delta.where(delta > 0, 0)
-    loss = -delta.where(delta < 0, 0) 
-
-    # Average gain dan average loss menggunakan Exponential Moving Average
-    avg_gain = gain.ewm(com=14 - 1, adjust=False).mean()
-    avg_loss = loss.ewm(com=14 - 1, adjust=False).mean()
-
-    # Hitung Relative Strength (RS)
-    rs = np.where(avg_loss == 0, np.inf, avg_gain / avg_loss) 
-    df_copy['RSI'] = 100 - (100 / (1 + rs))
-
-    # MACD (Moving Average Convergence Divergence)
-    exp1 = df_copy['Adj Close'].ewm(span=12, adjust=False).mean()
-    exp2 = df_copy['Adj Close'].ewm(span=26, adjust=False).mean()
-    df_copy['MACD'] = exp1 - exp2
-    df_copy['Signal_Line'] = df_copy['MACD'].ewm(span=9, adjust=False).mean()
-    df_copy['MACD_Hist'] = df_copy['MACD'] - df_copy['Signal_Line']
-    
-    # ATR (Average True Range)
-    high_low = df_copy['High'] - df_copy['Low']
-    high_close = np.abs(df_copy['High'] - df_copy['Close'].shift())
-    low_close = np.abs(df_copy['Low'] - df_copy['Close'].shift())
-    tr = np.maximum(high_low, np.maximum(high_close, low_close))
-    df_copy['ATR'] = tr.rolling(window=14).mean() 
-
-    df_copy.ffill(inplace=True)
-    df_copy.bfill(inplace=True)
-
-    return df_copy
-
-
-def create_sequences(data_scaled, lookback_window, target_feature_index):
-    """
-    Mengubah data deret waktu yang diskalakan menjadi pasangan input (X) dan output (y) sequences.
+    Fungsi ini melakukan tiga hal utama:
+    1. Mengambil data 'Adj Close' dari DataFrame.
+    2. Melakukan normalisasi data menggunakan MinMaxScaler.
+    3. Membuat data sekuensial (X) dan target (y) untuk pelatihan model.
 
     Args:
-        data_scaled (np.ndarray): Data deret waktu yang sudah dinormalisasi (2D array, samples x features).
-        lookback_window (int): Jumlah time steps yang akan digunakan sebagai input untuk prediksi.
-        target_feature_index (int): Indeks kolom target yang akan diprediksi (misal Adj Close).
+        df (pd.DataFrame): DataFrame yang berisi data saham, harus memiliki kolom 'Adj Close'.
+        lookback_window (int): Jumlah hari sebelumnya yang digunakan untuk memprediksi hari berikutnya.
 
     Returns:
-        tuple: (X, y) di mana X adalah input sequences dan y adalah target values.
+        tuple: Mengembalikan tiga nilai:
+            - X (np.ndarray): Data sekuensial input untuk model, dengan shape (samples, lookback_window, 1).
+            - y (np.ndarray): Data target, dengan shape (samples, 1).
+            - scaler (MinMaxScaler): Scaler yang digunakan, untuk mengembalikan prediksi ke nilai aslinya.
     """
-    X, y = [], []
-    
-    for i in range(len(data_scaled) - lookback_window):
-        X.append(data_scaled[i:(i + lookback_window), :]) 
-        y.append(data_scaled[i + lookback_window, target_feature_index]) 
+    # 1. Pilih hanya kolom 'Adj Close' dan pastikan itu adalah DataFrame
+    # Menggunakan [['Adj Close']] memastikan kita mendapatkan DataFrame, bukan Series
+    close_prices = df[['Adj Close']].copy()
 
-    return np.array(X), np.array(y)
+    # Menghapus baris yang mungkin memiliki nilai NaN untuk kebersihan data
+    close_prices.dropna(inplace=True)
+
+    # Mengubah ke tipe data float untuk konsistensi
+    close_prices = close_prices.astype('float32')
+
+    # 2. Buat dan terapkan scaler HANYA pada data 'Adj Close'
+    scaler = MinMaxScaler(feature_range=(0, 1))
+    scaled_prices = scaler.fit_transform(close_prices)
+
+    # 3. Buat sequences (X) dan target (y)
+    X, y = [], []
+    for i in range(len(scaled_prices) - lookback_window):
+        # X adalah urutan data dari i sampai i + lookback_window
+        X.append(scaled_prices[i:(i + lookback_window), 0])
+        # y adalah harga pada hari berikutnya setelah urutan X
+        y.append(scaled_prices[i + lookback_window, 0])
+
+    # Ubah ke format numpy array dan sesuaikan bentuknya untuk input GRU
+    # X perlu di-reshape menjadi [samples, timesteps, features]
+    X = np.array(X)
+    X = np.reshape(X, (X.shape[0], X.shape[1], 1))
+    y = np.array(y)
+
+    return X, y, scaler
+

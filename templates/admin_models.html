@@ -6,19 +6,21 @@ block content %}
     <h3 class="card-title">Daftar Model GRU Tersimpan</h3>
   </div>
   <div class="card-body">
-    <table class="table table-bordered table-striped">
+    <table id="modelsTable" class="table table-bordered table-striped">
       <thead>
         <tr>
           <th>ID</th>
           <th>Ticker</th>
-          <th>H.Dim</th>
+          <!-- PERUBAHAN: Menambahkan kolom Input Dim -->
+          <th>Input Dim</th>
           <th>Window</th>
+          <th>H.Dim</th>
           <th>LR</th>
           <th>DO</th>
           <th>RMSE</th>
           <th>MAE</th>
           <th>MAPE (%)</th>
-          <th>Tanggal Pelatihan</th>
+          <th>Tanggal Training</th>
           <th>Aksi</th>
         </tr>
       </thead>
@@ -26,27 +28,41 @@ block content %}
         {% for model in models %}
         <tr>
           <td>{{ model.id }}</td>
-          <td>{{ model.ticker }}</td>
-          <td>{{ model.hidden_dim }}</td>
+          <td><strong>{{ model.ticker }}</strong></td>
+          <!-- PERUBAHAN: Menampilkan nilai input_dim dengan badge -->
+          <td>
+            {% if model.input_dim == 1 %}
+            <span class="badge badge-success">{{ model.input_dim }}</span>
+            {% else %}
+            <span class="badge badge-secondary">{{ model.input_dim }}</span>
+            {% endif %}
+          </td>
           <td>{{ model.lookback_window }}</td>
+          <td>{{ model.hidden_dim }}</td>
           <td>{{ "%.4f"|format(model.learning_rate) }}</td>
           <td>{{ "%.2f"|format(model.dropout_rate) }}</td>
-          <td>{{ "%.4f"|format(model.rmse) }}</td>
-          <td>{{ "%.4f"|format(model.mae) }}</td>
-          <td>{{ "%.2f"|format(model.mape) }}</td>
+          <td>
+            {{ "%.4f"|format(model.rmse) if model.rmse is not none else 'N/A' }}
+          </td>
+          <td>
+            {{ "%.4f"|format(model.mae) if model.mae is not none else 'N/A' }}
+          </td>
+          <td>
+            {{ "%.2f"|format(model.mape) if model.mape is not none else 'N/A' }}
+          </td>
           <td>{{ model.training_timestamp.strftime('%Y-%m-%d %H:%M') }}</td>
           <td>
             <a
               href="{{ url_for('load_model', model_id=model.id) }}"
               class="btn btn-sm btn-primary"
-            >
-              <i class="fas fa-cogs"></i> Muat Model
-            </a>
+              title="Muat & Prediksi"
+              ><i class="fas fa-cogs"></i
+            ></a>
             <form
               action="{{ url_for('delete_model', model_id=model.id) }}"
               method="POST"
               style="display: inline"
-              onsubmit="return confirm('Apakah Anda yakin ingin menghapus model ini beserta semua prediksinya? Aksi ini tidak dapat dibatalkan.');"
+              onsubmit="return confirm('Apakah Anda yakin ingin menghapus model ini?');"
             >
               <button
                 type="submit"
@@ -60,7 +76,7 @@ block content %}
         </tr>
         {% else %}
         <tr>
-          <td colspan="11" class="text-center">
+          <td colspan="12" class="text-center">
             Belum ada model yang disimpan di database.
           </td>
         </tr>
@@ -69,4 +85,18 @@ block content %}
     </table>
   </div>
 </div>
+{% endblock %} {% block scripts_extra %}
+<script>
+  $(function () {
+    // Pastikan DataTables diinisialisasi dengan benar
+    if (!$.fn.dataTable.isDataTable("#modelsTable")) {
+      $("#modelsTable").DataTable({
+        responsive: true,
+        lengthChange: false,
+        autoWidth: false,
+        order: [[10, "desc"]], // Urutkan berdasarkan tanggal training terbaru
+      });
+    }
+  });
+</script>
 {% endblock %}

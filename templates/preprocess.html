@@ -1,113 +1,127 @@
-{% extends "admin_base.html" %} {% block title %} Preprocessing Data Saham{%
-endblock %} {% block page_title %} Preprocessing Data Saham {{ current_ticker }}
-{% endblock %} {% block content %}
+{% extends "admin_base.html" %} {% block title %}Preprocessing Data - {{
+current_ticker }}{% endblock %} {% block content %}
+<div class="container-fluid">
+  <h1 class="mt-4">Preprocessing Data untuk {{ current_ticker }}</h1>
+  <ol class="breadcrumb mb-4">
+    <li class="breadcrumb-item">
+      <a href="{{ url_for('admin_dashboard') }}">Kembali</a>
+    </li>
+    <li class="breadcrumb-item active">Preprocessing</li>
+  </ol>
 
-<div class="card">
-  <div class="card-header">
-    <h3 class="card-title">Kontrol Halaman</h3>
+  {% if show_preprocess_results %}
+  <div class="card mb-4">
+    <div class="card-header">
+      <i class="fas fa-chart-area mr-1"></i>
+      Ringkasan Proses
+    </div>
+    <div class="card-body">
+      <div class="row">
+        <div class="col-md-6">
+          <h5>Parameter Model</h5>
+          <ul class="list-group">
+            <li
+              class="list-group-item d-flex justify-content-between align-items-center"
+            >
+              Ticker Saham
+              <span class="badge badge-primary badge-pill"
+                >{{ current_ticker }}</span
+              >
+            </li>
+            <li
+              class="list-group-item d-flex justify-content-between align-items-center"
+            >
+              Total Data Historis
+              <span class="badge badge-info badge-pill"
+                >{{ total_records }} hari</span
+              >
+            </li>
+            <li
+              class="list-group-item d-flex justify-content-between align-items-center"
+            >
+              Lookback Window
+              <span class="badge badge-secondary badge-pill"
+                >{{ lookback_window }} hari</span
+              >
+            </li>
+            <li
+              class="list-group-item d-flex justify-content-between align-items-center"
+            >
+              Jumlah Fitur Input (input_dim)
+              <span class="badge badge-success badge-pill"
+                >{{ input_dim }}</span
+              >
+            </li>
+            <li
+              class="list-group-item d-flex justify-content-between align-items-center"
+            >
+              Hidden Dim
+              <span class="badge badge-secondary badge-pill"
+                >{{ hidden_dim }}</span
+              >
+            </li>
+          </ul>
+        </div>
+        <div class="col-md-6">
+          <h5>Ukuran Data Sequence</h5>
+          <ul class="list-group">
+            <li
+              class="list-group-item d-flex justify-content-between align-items-center"
+            >
+              Train X Shape
+              <span class="badge badge-info badge-pill"
+                >{{ X_shape_train }}</span
+              >
+            </li>
+            <li
+              class="list-group-item d-flex justify-content-between align-items-center"
+            >
+              Train y Shape
+              <span class="badge badge-info badge-pill"
+                >{{ y_shape_train }}</span
+              >
+            </li>
+            <li
+              class="list-group-item d-flex justify-content-between align-items-center"
+            >
+              Validation X Shape
+              <span class="badge badge-warning badge-pill"
+                >{{ X_shape_val }}</span
+              >
+            </li>
+            <li
+              class="list-group-item d-flex justify-content-between align-items-center"
+            >
+              Validation y Shape
+              <span class="badge badge-warning badge-pill"
+                >{{ y_shape_val }}</span
+              >
+            </li>
+          </ul>
+        </div>
+      </div>
+      <div class="text-center mt-4">
+        <a href="{{ url_for('train_model') }}" class="btn btn-lg btn-success">
+          <i class="fas fa-cogs"></i> Mulai Latih Model
+        </a>
+      </div>
+    </div>
   </div>
-  <div class="card-body text-center">
-    {% if show_preprocess_results %}
-    <a
-      href="{{ url_for('train_model') }}"
-      class="btn btn-info mr-2"
-      id="train-model-button"
-      >Latih Model</a
-    >
-    {% if model_loaded_from_cache %}
-    <a href="{{ url_for('predict_price') }}" class="btn btn-success mr-2"
-      >Gunakan Model yang Dimuat (Prediksi)</a
-    >
-    {% endif %}
-    <a href="{{ url_for('index') }}" class="btn btn-secondary"
-      >Kembali ke Unduh Data</a
-    >
-    {% else %}
-    <p>Silakan proses data terlebih dahulu dari halaman unduh.</p>
-    <a href="{{ url_for('index') }}" class="btn btn-primary"
-      >Kembali ke Unduh Data</a
-    >
-    {% endif %}
+
+  <div class="card mb-4">
+    <div class="card-header">
+      <i class="fas fa-table mr-1"></i>
+      Data Harga Penutupan (Adj Close) yang Digunakan
+    </div>
+    <div class="card-body">
+      <div class="table-responsive">{{ data_html|safe }}</div>
+    </div>
   </div>
+  {% else %}
+  <div class="alert alert-info" role="alert">
+    Tidak ada data yang diproses. Silakan pilih ticker dan proses dari halaman
+    utama.
+  </div>
+  {% endif %}
 </div>
-
-{% if show_preprocess_results %}
-<div class="card mt-4">
-  <div class="card-header">
-    <h3 class="card-title">Ringkasan Preprocessing</h3>
-  </div>
-  <div class="card-body">
-    <ul class="list-group list-group-unbordered mb-3">
-      <li class="list-group-item">
-        <b>Total Record Data:</b>
-        <span class="float-right">{{ total_records }}</span>
-      </li>
-      <li class="list-group-item">
-        <b>Lookback Window (Sequence Length):</b>
-        <span class="float-right">{{ lookback_window }} hari</span>
-      </li>
-      <li class="list-group-item">
-        <b>Input Dim (Jumlah Fitur):</b>
-        <span class="float-right">{{ input_dim }}</span>
-      </li>
-      <li class="list-group-item">
-        <b>Hidden Dim GRU:</b> <span class="float-right">{{ hidden_dim }}</span>
-      </li>
-      <li class="list-group-item">
-        <b>Learning Rate</b>
-        <span class="float-right">{{ learning_rate }}</span>
-      </li>
-      <li class="list-group-item">
-        <b>Dropout Rate GRU:</b>
-        <span class="float-right">{{ dropout_rate }}</span>
-      </li>
-      <li class="list-group-item">
-        <b>Shape X_train:</b>
-        <span class="float-right">{{ X_shape_train }}</span>
-      </li>
-      <li class="list-group-item">
-        <b>Shape y_train:</b>
-        <span class="float-right">{{ y_shape_train }}</span>
-      </li>
-      <li class="list-group-item">
-        <b>Shape X_val:</b> <span class="float-right">{{ X_shape_val }}</span>
-      </li>
-      <li class="list-group-item">
-        <b>Shape y_val:</b> <span class="float-right">{{ y_val_data }}</span>
-      </li>
-    </ul>
-  </div>
-</div>
-
-<div class="card mt-4">
-  <div class="card-header">
-    <h3 class="card-title">Cuplikan Data Setelah Preprocessing</h3>
-  </div>
-  <div class="card-body">
-    <div class="table-responsive">{{ data_html | safe }}</div>
-    <p class="text-center text-muted mt-3">
-      Data di atas telah dimuat dari database dan dinormalisasi (khusus 'Adj
-      Close').
-    </p>
-  </div>
-</div>
-{% endif %} {% block scripts_extra %}
-<script>
-  const trainButton = document.getElementById("train-model-button");
-  const loadingOverlay = document.getElementById("loading-overlay");
-
-  if (trainButton && loadingOverlay) {
-    trainButton.addEventListener("click", function (event) {
-      event.preventDefault();
-
-      loadingOverlay.style.display = "flex";
-
-      const targetUrl = this.href;
-
-      setTimeout(function () {
-        window.location.href = targetUrl;
-      }, 100);
-    });
-  }
-</script>
-{% endblock %} {% endblock %}
+{% endblock %}

@@ -19,6 +19,14 @@
   href="https://fonts.googleapis.com/css?family=Source+Sans+Pro:300,400,400i,700"
   rel="stylesheet"
 />
+<link
+  rel="stylesheet"
+  href="https://cdn.datatables.net/1.10.21/css/dataTables.bootstrap4.min.css"
+/>
+<link
+  rel="stylesheet"
+  href="https://cdn.datatables.net/responsive/2.2.5/css/responsive.bootstrap4.min.css"
+/>
 <!-- Optional: custom CSS for your specific overrides -->
 <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
 {% endblock %} {% block body_content %}
@@ -39,7 +47,9 @@
         ></a>
       </li>
       <li class="nav-item d-none d-sm-inline-block">
-        <a href="{{ url_for('admin_dashboard') }}" class="nav-link">Home Admin</a>
+        <a href="{{ url_for('admin_dashboard') }}" class="nav-link"
+          >Home Admin</a
+        >
       </li>
       <li class="nav-item d-none d-sm-inline-block">
         <a href="{{ url_for('logout') }}" class="nav-link">Logout</a>
@@ -177,5 +187,9 @@
 <script src="{{ url_for('static', filename='adminlte/plugins/bootstrap/js/bootstrap.bundle.min.js') }}"></script>
 <!-- AdminLTE App -->
 <script src="{{ url_for('static', filename='adminlte/dist/js/adminlte.min.js') }}"></script>
+<script src="https://cdn.datatables.net/1.10.21/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.10.21/js/dataTables.bootstrap4.min.js"></script>
+<script src="https://cdn.datatables.net/responsive/2.2.5/js/dataTables.responsive.min.js"></script>
+<script src="https://cdn.datatables.net/responsive/2.2.5/js/responsive.bootstrap4.min.js"></script>
 
 {% block scripts_extra %}{% endblock %} {% endblock %}

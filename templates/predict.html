@@ -64,8 +64,8 @@ endblock %} {% block content %}
           {% for result in prediction_results %}
           <tr>
             <td>{{ result['Date'] }}</td>
-            <td>{{ result['True Price'] }}</td>
-            <td>{{ result['Predicted Price'] }}</td>
+            <td>$ {{ result['True Price'] }}</td>
+            <td>$ {{ result['Predicted Price'] }}</td>
           </tr>
           {% endfor %}
         </tbody>

@@ -1,162 +1,132 @@
-{% extends "admin_base.html" %} {% block title %}Prediksi Harga Saham Masa
-Depan{% endblock %} {% block page_title %}Prediksi Harga Saham {{ ticker }} ({{
-future_prediction_days }} Hari ke Depan){% endblock %} {% block content %}
-<div class="card">
-  <div class="card-header">
-    <h3 class="card-title">Hasil Prediksi Masa Depan</h3>
+{% extends "admin_base.html" %} {% block title %}Prediksi Masa Depan - {{ ticker
+}}{% endblock %} {% block content %}
+<div class="container-fluid">
+  <h1 class="mt-4">Prediksi Masa Depan untuk {{ ticker }}</h1>
+  <ol class="breadcrumb mb-4">
+    <li class="breadcrumb-item"><a href="{{ url_for('index') }}">Home</a></li>
+    <li class="breadcrumb-item">
+      <a href="{{ url_for('predict_price') }}">Hasil Prediksi</a>
+    </li>
+    <li class="breadcrumb-item active">Prediksi Masa Depan</li>
+  </ol>
+
+  <div class="card mb-4">
+    <div class="card-header">
+      <i class="fas fa-chart-line mr-1"></i>
+      Grafik Prediksi {{ future_prediction_days }} Hari ke Depan
+    </div>
+    <div class="card-body">
+      <canvas id="futurePredictionChart" width="100%" height="40"></canvas>
+    </div>
+    <div class="card-footer small text-muted">
+      Grafik ini menunjukkan harga historis (biru) dan satu garis prediksi masa
+      depan (hijau).
+    </div>
   </div>
-  <div class="card-body">
-    {% with messages = get_flashed_messages(with_categories=true) %} {% if
-    messages %} {% for category, message in messages %}
-    <div
-      class="alert alert-{% if category == 'error' %}danger{% elif category == 'info' %}info{% elif category == 'warning' %}warning{% else %}success{% endif %}"
-      role="alert"
-    >
-      {{ message }}
-    </div>
-    {% endfor %} {% endif %} {% endwith %}
 
-    <div class="controls text-center mb-4">
-      <a href="{{ url_for('predict_price') }}" class="btn btn-secondary mr-2"
-        >Kembali ke Prediksi Historis</a
-      >
-      <a href="{{ url_for('admin_dashboard') }}" class="btn btn-info"
-        >Kembali ke Dashboard Admin</a
-      >
+  <div class="card mb-4">
+    <div class="card-header">
+      <i class="fas fa-table mr-1"></i>
+      Tabel Prediksi {{ future_prediction_days }} Hari ke Depan
     </div>
-
-    <p class="text-center text-muted">
-      Berikut adalah prediksi harga saham {{ ticker }} untuk {{
-      future_prediction_days }} hari ke depan. Harap dicatat bahwa prediksi
-      semakin jauh ke depan cenderung memiliki akurasi yang lebih rendah karena
-      akumulasi kesalahan.
-    </p>
-
-    <h4 class="mt-4 mb-3 text-center">Grafik Prediksi Harga Saham</h4>
-    {% if historical_for_chart or future_for_chart %}
-    <canvas
-      id="futurePredictionChart"
-      style="max-width: 100%; height: auto"
-    ></canvas>
-    {% else %}
-    <p class="text-center text-muted">
-      Tidak ada data untuk menampilkan grafik.
-    </p>
-    {% endif %} {% if future_predictions %}
-    <h4 class="mt-4 mb-3 text-center">Detail Tabel Prediksi</h4>
-    <div class="table-responsive">
-      <table class="table table-bordered table-striped">
-        <thead>
-          <tr>
-            <th>Tanggal</th>
-            <th>Harga Prediksi</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for prediction in future_predictions %}
-          <tr>
-            <td>{{ prediction['Date'] }}</td>
-            <td>{{ prediction['Predicted Price'] }}</td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
+    <div class="card-body">
+      <div class="table-responsive">
+        <table
+          class="table table-bordered table-striped"
+          id="dataTable"
+          width="100%"
+          cellspacing="0"
+        >
+          <thead>
+            <tr>
+              <th>Tanggal Prediksi</th>
+              <th>Harga Prediksi</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for prediction in future_predictions %}
+            <tr>
+              <td>{{ prediction.Date }}</td>
+              <td>{{ prediction['Predicted Price'] }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
     </div>
-    {% else %}
-    <p class="text-center text-muted">
-      Tidak ada prediksi masa depan yang tersedia.
-    </p>
-    {% endif %}
   </div>
 </div>
 {% endblock %} {% block scripts_extra %}
+<!-- ### PERBAIKAN ###: Menambahkan Chart.js dan Date Adapter -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom"></script>
-<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@^1.0.0"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+
 <script>
-  const historicalData = {{ historical_for_chart | tojson }} || [];
-  const allFuturePaths = {{ future_for_chart_all_paths | tojson }} || [];
-  const avgPredictions = {{ avg_predictions | tojson }} || [];
+  document.addEventListener("DOMContentLoaded", function() {
+      const historicalData = {{ historical_for_chart | tojson }};
+      const futurePredictions = {{ avg_predictions | tojson }};
+      const futureDates = {{ future_predictions | map(attribute='Date') | list | tojson }};
 
-  if (historicalData.length > 0 && allFuturePaths.length > 0) {
+      if (historicalData.length > 0 && futurePredictions.length > 0) {
+          const historicalLabels = historicalData.map(d => d.Date);
+          const historicalPrices = historicalData.map(d => d.Price);
+          const allLabels = historicalLabels.concat(futureDates);
 
-      const futureDates = allFuturePaths[0].map((_, i) => {
-          const lastDate = new Date(historicalData[historicalData.length - 1].Date);
-          lastDate.setDate(lastDate.getDate() + i + 1);
-          return lastDate.toISOString().split('T')[0];
-      });
+          const predictionData = new Array(historicalLabels.length - 1).fill(null);
+          predictionData.push(historicalPrices[historicalPrices.length - 1]);
+          predictionData.push(...futurePredictions);
 
-      const chartLabels = historicalData.map(d => d.Date).concat(futureDates);
-      const datasets = [];
-
-      // 1. Gambar semua jalur simulasi dengan transparan
-      allFuturePaths.forEach((path, index) => {
-          const paddedPath = Array(historicalData.length).fill(NaN).concat(path);
-          datasets.push({
-              label: `Simulasi ${index + 1}`,
-              data: paddedPath,
-              borderColor: 'rgba(255, 99, 132, 0.1)', // Warna merah sangat transparan
-              borderWidth: 1.5,
-              fill: false,
-              pointRadius: 0,
-          });
-      });
-
-      // 2. Gambar garis data historis
-      const paddedHistorical = historicalData.map(d => d.Price).concat(Array(futureDates.length).fill(NaN));
-      datasets.push({
-          label: 'Data Historis',
-          data: paddedHistorical,
-          borderColor: 'rgb(54, 162, 235)', // Warna biru solid
-          borderWidth: 2,
-          fill: false,
-          pointRadius: 0,
-      });
-
-      // 3. Gambar garis rata-rata prediksi yang lebih tebal
-      const paddedAvg = Array(historicalData.length - 1).fill(NaN).concat([historicalData[historicalData.length - 1].Price]).concat(avgPredictions);
-      datasets.push({
-          label: 'Rata-rata Prediksi',
-          data: paddedAvg,
-          borderColor: 'rgb(220, 53, 69)', // Warna merah solid yang lebih gelap
-          borderWidth: 2.5,
-          fill: false,
-          pointRadius: 0,
-      });
-
-      const ctx = document.getElementById('futurePredictionChart').getContext('2d');
-      new Chart(ctx, {
-          type: 'line',
-          data: {
-              labels: chartLabels,
-              datasets: datasets
-          },
-          options: {
-              responsive: true,
-              maintainAspectRatio: true,
-              scales: {
-                  x: { title: { display: true, text: 'Tanggal' } },
-                  y: { title: { display: true, text: 'Harga Saham ($)' } }
+          const ctx = document.getElementById('futurePredictionChart').getContext('2d');
+          new Chart(ctx, {
+              type: 'line',
+              data: {
+                  labels: allLabels,
+                  datasets: [{
+                      label: 'Harga Historis (Adj Close)',
+                      data: historicalPrices,
+                      borderColor: 'rgba(0, 123, 255, 1)',
+                      backgroundColor: 'rgba(0, 123, 255, 0.1)',
+                      borderWidth: 2,
+                      pointRadius: 0,
+                      fill: false
+                  }, {
+                      label: 'Harga Prediksi Masa Depan',
+                      data: predictionData,
+                      borderColor: 'rgba(220, 53, 69, 1)',
+                      backgroundColor: 'rgba(220, 53, 69, 0.1)',
+                      borderWidth: 2,
+                      pointRadius: 2,
+                      borderDash: [5, 5],
+                      fill: false
+                  }]
               },
-              plugins: {
-                  title: { display: true, text: 'Simulasi Prediksi Harga Saham di Masa Depan (Monte Carlo Dropout)' },
-                  legend: {
-                      labels: {
-                          // Sembunyikan label untuk setiap simulasi agar legenda tidak penuh
-                          filter: item => !item.text.includes('Simulasi')
+              options: {
+                  responsive: true,
+                  maintainAspectRatio: true,
+                  scales: {
+                      x: {
+                          type: 'time',
+                          time: {
+                              unit: 'day',
+                              tooltipFormat: 'yyyy-MM-dd'
+                          },
+                          title: { display: true, text: 'Tanggal' }
+                      },
+                      y: {
+                          title: { display: true, text: 'Harga' },
+                          ticks: {
+                              callback: function(value) {
+                                  return '$' + value.toFixed(2);
+                              }
+                          }
                       }
                   },
-                  tooltip: {
-                      mode: 'index',
-                      intersect: false,
-                  },
-                  zoom: {
-                      pan: { enabled: true, mode: 'x' },
-                      zoom: { wheel: { enabled: true }, pinch: { enabled: true }, mode: 'x' }
+                  plugins: {
+                      tooltip: { mode: 'index', intersect: false }
                   }
               }
-          }
-      });
-  }
+          });
+      }
+  });
 </script>
 {% endblock %}

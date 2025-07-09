@@ -1,4 +1,4 @@
-#!C:\laragon\www\prediksitsla\venv\Scripts\python.exe
+#!C:\laragon\www\stockprediction\venv\Scripts\python.exe
 
 import datetime
 import os
