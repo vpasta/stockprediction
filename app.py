@@ -52,7 +52,6 @@ def admin_required(f):
         return f(*args, **kwargs)
     return decorated_function
 
-# --- RUTE AUTENTIKASI (Tidak Berubah) ---
 @app.route('/register', methods=['GET', 'POST'])
 def register():
     if request.method == 'POST':
@@ -89,7 +88,6 @@ def login():
             session['logged_in'] = True
             session['username'] = user.username
             session['user_role'] = user.role
-            flash(f'Selamat datang, {user.username}!', 'success')
             if user.role == 'admin':
                 return redirect(url_for('admin_dashboard'))
             else:
@@ -103,8 +101,6 @@ def logout():
     session.clear()
     flash('Anda telah berhasil logout.', 'info')
     return redirect(url_for('login'))
-
-# --- RUTE MANAJEMEN DATA ---
 
 @app.route('/', methods=['GET', 'POST'])
 @admin_required
@@ -123,7 +119,6 @@ def index():
     default_dropout_rate = config.DEFAULT_DROPOUT_RATE
     default_patience = config.EARLY_STOPPING_PATIENCE
 
-    # ### PERBAIKAN ###: Logika POST hanya untuk form utama (unduh data)
     if request.method == 'POST':
         ticker = request.form.get('ticker', default_ticker).upper()
         session['current_ticker'] = ticker
@@ -182,7 +177,6 @@ def index():
                            default_epochs=default_epochs, default_learning_rate=default_learning_rate,
                            default_dropout_rate=default_dropout_rate, default_patience=default_patience)
 
-# ### PERBAIKAN 1: Menambahkan rute yang hilang untuk memperbaiki BuildError ###
 @app.route('/process_existing', methods=['POST'])
 @admin_required
 def process_existing():
@@ -227,7 +221,6 @@ def delete_stock_data(ticker):
         flash(f'Gagal menghapus data untuk {ticker}: {e}', 'error')
     return redirect(url_for('index'))
 
-# ... (Rute /preprocess, /train, /predict, /predict_future tidak berubah dari versi sebelumnya) ...
 @app.route('/preprocess', methods=['GET', 'POST'])
 @admin_required
 def preprocess():
@@ -518,39 +511,30 @@ def predict_future():
                            historical_for_chart=historical_for_chart,
                            avg_predictions=future_predictions)
 
-# ### PERBAIKAN 2: Memperbaiki logika pemuatan model ###
 @app.route('/load_model/<int:model_id>')
 @admin_required
 def load_model(model_id):
     saved_model = SavedModel.query.get_or_404(model_id)
 
-    # ### PERBAIKAN 3: Menambahkan pengecekan kompatibilitas model ###
-    # Hanya izinkan memuat model yang dilatih dengan 1 fitur.
     if saved_model.input_dim != 1:
         flash(f"Model ID {model_id} tidak kompatibel. Model ini dilatih dengan {saved_model.input_dim} fitur, sedangkan sistem saat ini hanya mendukung 1 fitur.", 'error')
         return redirect(url_for('admin_models_manage'))
 
     try:
-        # Inisialisasi model GRU dengan parameter yang benar dari DB
         gru_model = GRU(input_dim=saved_model.input_dim, hidden_dim=saved_model.hidden_dim, output_dim=1, dropout_rate=saved_model.dropout_rate)
         
-        # ### PERBAIKAN 4: Memuat bobot dengan cara yang lebih robust ###
         weights_npz = np.load(saved_model.model_filepath, allow_pickle=True)
-        # Mengubah NpzFile menjadi dictionary standar untuk keamanan
         weights_dict = {key: weights_npz[key] for key in weights_npz.files}
         gru_model.set_weights(weights_dict)
 
-        # Rekonstruksi data dan scaler yang diperlukan untuk prediksi
         stock_records = StockData.query.filter_by(ticker=saved_model.ticker).order_by(StockData.date.asc()).all()
         df = pd.DataFrame([{'Date': r.date, 'Adj Close': r.adj_close_price} for r in stock_records]).set_index('Date')
         
-        # Memanggil fungsi preprocessing yang benar
         X, y, scaler = preprocess_data(df, saved_model.lookback_window)
         
         train_size = int(len(X) * config.DEFAULT_TRAIN_SPLIT_RATIO)
         X_val, y_val = X[train_size:], y[train_size:]
 
-        # Menyimpan semua state yang diperlukan ke app.config agar halaman /predict bisa bekerja
         session['current_ticker'] = saved_model.ticker
         app.config['gru_model'] = gru_model
         app.config['scaler'] = scaler
@@ -572,7 +556,6 @@ def load_model(model_id):
         traceback.print_exc()
         return redirect(url_for('admin_models_manage'))
 
-# ... (Rute /admin/models, /admin/dashboard, /dashboard_user, /free_user_predict_view tidak berubah) ...
 @app.route('/admin/models')
 @admin_required
 def admin_models_manage():
